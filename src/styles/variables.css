@@ -1,0 +1,40 @@
+/* Paleta DailyTask
+   Tinta   #1B1F3B  → navegación y paneles de marca
+   Iris    #5B5BD6  → acción principal
+   Menta   #2EC4A6  → tareas completadas y detalles de éxito
+   Bruma   #F3F5FB  → fondo de la aplicación
+*/
+:root {
+  --ink: #1b1f3b;
+  --ink-soft: #2a3057;
+  --iris: #5b5bd6;
+  --iris-dark: #4747b8;
+  --iris-tint: #eceafd;
+  --mint: #2ec4a6;
+  --mint-dark: #167a67;
+  --mint-tint: #dcf6f0;
+  --mist: #f3f5fb;
+  --surface: #ffffff;
+  --text: #1b1f3b;
+  --muted: #5a6182;
+  --border: #dfe3f1;
+
+  --high: #d93c42;
+  --high-tint: #fde8e9;
+  --medium: #b36b00;
+  --medium-tint: #fff1d6;
+  --low: #2c6fb5;
+  --low-tint: #e0eefb;
+
+  --status-pending: #8a90b0;
+  --status-progress: var(--iris);
+  --status-done: var(--mint);
+
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(27, 31, 59, 0.06), 0 6px 18px rgba(27, 31, 59, 0.06);
+
+  --font-display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --font-body: "DM Sans", "Segoe UI", system-ui, sans-serif;
+}
