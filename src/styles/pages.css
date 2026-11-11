@@ -1,0 +1,42 @@
+/* ---------- Dashboard ---------- */
+.dashboard { max-width: 1200px; margin: 0 auto; padding: 1.75rem 1.25rem 3rem; }
+.dashboard__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.dashboard__head h1 { font-size: clamp(1.6rem, 3vw, 2.1rem); font-weight: 800; }
+.results-note { color: var(--muted); margin-bottom: 0.9rem; font-size: 0.92rem; }
+
+/* ---------- Autenticación ---------- */
+.auth { min-height: 100vh; display: grid; grid-template-columns: minmax(320px, 5fr) 6fr; }
+.auth__aside { background: var(--ink); color: #fff; padding: 2.5rem; display: flex; flex-direction: column; justify-content: space-between; gap: 2rem; }
+.auth__pitch h1 { font-size: clamp(2rem, 3.4vw, 3rem); font-weight: 800; margin-bottom: 0.9rem; }
+.auth__pitch p { color: #c9cdea; max-width: 38ch; margin-bottom: 2rem; }
+.auth__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; max-width: 360px; }
+.auth__list li { display: flex; align-items: center; gap: 0.8rem; padding: 0.7rem 0.9rem; background: var(--ink-soft); border-radius: var(--radius-md); font-weight: 500; }
+.auth__list li.is-done { color: #9aa1cc; text-decoration: line-through; }
+.auth__tick { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #5a6090; display: grid; place-items: center; font-size: 0.8rem; color: var(--ink); flex: none; }
+.is-done .auth__tick { background: var(--mint); border-color: var(--mint); }
+.auth__panel { display: grid; place-items: center; padding: 2rem 1.25rem; }
+.auth__card { width: min(420px, 100%); }
+.auth__card h2 { font-size: 1.8rem; font-weight: 800; }
+.auth__subtitle { color: var(--muted); margin: 0.4rem 0 1.6rem; }
+.auth__switch { margin-top: 1.25rem; text-align: center; color: var(--muted); }
+.auth__mobile-logo { display: none; margin-bottom: 1.5rem; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 960px) {
+  .board--3 { grid-template-columns: 1fr; }
+  .board--1 { grid-template-columns: 1fr; }
+  .filters { grid-template-columns: 1fr 1fr; }
+  .filters__search { grid-column: 1 / -1; }
+  .filters__clear { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .auth { grid-template-columns: 1fr; }
+  .auth__aside { display: none; }
+  .auth__mobile-logo { display: block; }
+  .navbar__name { display: none; }
+}
+@media (max-width: 480px) {
+  .field-row { grid-template-columns: 1fr; }
+  .filters { grid-template-columns: 1fr; }
+  .dashboard__head .btn { width: 100%; }
+}
