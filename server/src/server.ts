@@ -1,9 +1,12 @@
 import { buildApp } from "./app.ts";
 import { type Config, ConfigError, loadConfig } from "./config.ts";
+import { createDatabase } from "./db/pool.ts";
+import { DatabaseNotReadyError, verifyDatabase } from "./db/verify.ts";
 
 /**
- * Punto de entrada: carga la configuración, arranca el servidor y gestiona
- * el cierre ordenado ante SIGINT/SIGTERM (systemd envía SIGTERM al parar).
+ * Punto de entrada: carga la configuración, comprueba MySQL, arranca el servidor
+ * y gestiona el cierre ordenado ante SIGINT/SIGTERM (systemd envía SIGTERM al parar).
+ * `app.close()` cierra también el pool de MySQL.
  */
 async function main(): Promise<void> {
   let config: Config;
@@ -18,7 +21,7 @@ async function main(): Promise<void> {
     throw error;
   }
 
-  const app = buildApp(config);
+  const app = buildApp(config, { db: createDatabase(config.db) });
   let closing = false;
 
   async function shutdown(signal: NodeJS.Signals): Promise<void> {
@@ -44,9 +47,20 @@ async function main(): Promise<void> {
   process.once("SIGTERM", (signal) => void shutdown(signal));
 
   try {
+    await verifyDatabase(app.db);
+    app.log.info({ database: config.db.database }, "MySQL disponible y esquema verificado");
+  } catch (error) {
+    if (!(error instanceof DatabaseNotReadyError)) throw error;
+    app.log.fatal({ problems: error.problems }, error.message);
+    await app.close();
+    process.exit(1);
+  }
+
+  try {
     await app.listen({ host: config.host, port: config.port });
   } catch (error) {
     app.log.error({ err: error }, "no se pudo iniciar el servidor");
+    await app.close();
     process.exit(1);
   }
 }

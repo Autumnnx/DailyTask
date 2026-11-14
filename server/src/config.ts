@@ -1,13 +1,31 @@
+import { readFileSync } from "node:fs";
+
 /**
  * Lectura y validación de la configuración desde variables de entorno.
  *
  * Regla de seguridad: los mensajes de error nombran la variable y la regla
  * incumplida, pero NUNCA incluyen el valor recibido (podría ser un secreto
- * pegado por error en la variable equivocada).
+ * pegado por error en la variable equivocada) ni el contenido de ficheros.
  */
 
 export type NodeEnv = "development" | "production" | "test";
 export type LogLevel = "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
+
+export interface DbConfig {
+  /** TCP (desarrollo). Ignorado si hay `socketPath`. */
+  host: string;
+  port: number;
+  /** Socket Unix (producción en NixOS). */
+  socketPath: string | undefined;
+  database: string;
+  user: string;
+  /** `undefined` permite métodos sin contraseña (p. ej. auth_socket). */
+  password: string | undefined;
+  poolSize: number;
+  connectTimeoutMs: number;
+  /** Tiempo máximo de las consultas de comprobación (health, esquema). */
+  queryTimeoutMs: number;
+}
 
 export interface Config {
   nodeEnv: NodeEnv;
@@ -22,6 +40,7 @@ export interface Config {
   requestTimeoutMs: number;
   /** Tiempo máximo de cierre ordenado antes de forzar la salida, en ms. */
   shutdownTimeoutMs: number;
+  db: DbConfig;
 }
 
 export class ConfigError extends Error {
@@ -34,13 +53,16 @@ export class ConfigError extends Error {
   }
 }
 
-type Env = Record<string, string | undefined>;
+export type Env = Record<string, string | undefined>;
 
 const NODE_ENVS: readonly NodeEnv[] = ["development", "production", "test"];
 const LOG_LEVELS: readonly LogLevel[] = ["fatal", "error", "warn", "info", "debug", "trace", "silent"];
 
 // IPv4, IPv6 o CIDR. Validación deliberadamente simple: solo caracteres permitidos.
 const PROXY_ENTRY = /^[0-9a-fA-F:.]+(\/\d{1,3})?$/;
+const HOSTNAME = /^[A-Za-z0-9.:-]+$/;
+const DB_NAME = /^[A-Za-z0-9_]{1,64}$/;
+const DB_USER = /^[A-Za-z0-9_.-]{1,32}$/;
 
 function readEnum<T extends string>(env: Env, name: string, allowed: readonly T[], fallback: T, problems: string[]): T {
   const raw = env[name]?.trim();
@@ -61,12 +83,23 @@ function readInt(env: Env, name: string, fallback: number, min: number, max: num
   return fallback;
 }
 
-function readHost(env: Env, problems: string[]): string {
-  const raw = env.HOST?.trim();
-  if (!raw) return "127.0.0.1";
-  if (/^[A-Za-z0-9.:-]+$/.test(raw)) return raw;
-  problems.push("HOST debe ser una dirección IP o un nombre de host válido.");
-  return "127.0.0.1";
+function readHost(env: Env, name: string, fallback: string, problems: string[]): string {
+  const raw = env[name]?.trim();
+  if (!raw) return fallback;
+  if (HOSTNAME.test(raw)) return raw;
+  problems.push(`${name} debe ser una dirección IP o un nombre de host válido.`);
+  return fallback;
+}
+
+function readRequired(env: Env, name: string, pattern: RegExp, rule: string, problems: string[]): string {
+  const raw = env[name]?.trim();
+  if (!raw) {
+    problems.push(`${name} es obligatoria.`);
+    return "";
+  }
+  if (pattern.test(raw)) return raw;
+  problems.push(`${name} ${rule}.`);
+  return "";
 }
 
 function readTrustProxy(env: Env, problems: string[]): string[] | false {
@@ -78,20 +111,79 @@ function readTrustProxy(env: Env, problems: string[]): string[] | false {
   return false;
 }
 
+/** Lee `<name>` o `<name>_FILE` (fichero con el secreto, p. ej. de systemd LoadCredential). */
+function readSecret(env: Env, name: string, problems: string[]): string | undefined {
+  const direct = env[name];
+  const file = env[`${name}_FILE`]?.trim();
+  if (direct !== undefined && direct !== "" && file) {
+    problems.push(`Define solo una de ${name} o ${name}_FILE.`);
+    return undefined;
+  }
+  if (file) {
+    try {
+      return readFileSync(file, "utf8").replace(/\r?\n$/, "");
+    } catch {
+      problems.push(`${name}_FILE no se pudo leer (comprueba la ruta y los permisos).`);
+      return undefined;
+    }
+  }
+  return direct === "" ? undefined : direct;
+}
+
+export interface DbCredentialVars {
+  user: string;
+  password: string;
+}
+
+/**
+ * Configuración de conexión MySQL. Las variables de usuario y contraseña son
+ * parametrizables para que la inicialización del esquema use otra cuenta.
+ */
+export function readDbConfig(
+  env: Env,
+  problems: string[],
+  vars: DbCredentialVars = { user: "DB_USER", password: "DB_PASSWORD" },
+): DbConfig {
+  const socketPath = env.DB_SOCKET_PATH?.trim() || undefined;
+  if (socketPath && env.DB_HOST?.trim()) problems.push("Define solo una de DB_SOCKET_PATH o DB_HOST.");
+  if (socketPath && !socketPath.startsWith("/")) problems.push("DB_SOCKET_PATH debe ser una ruta absoluta.");
+
+  return {
+    host: readHost(env, "DB_HOST", "127.0.0.1", problems),
+    port: readInt(env, "DB_PORT", 3306, 1, 65535, problems),
+    socketPath,
+    database: readRequired(env, "DB_NAME", DB_NAME, "solo admite letras, números y '_' (máx. 64)", problems),
+    user: readRequired(env, vars.user, DB_USER, "solo admite letras, números, '_', '.' y '-' (máx. 32)", problems),
+    password: readSecret(env, vars.password, problems),
+    poolSize: readInt(env, "DB_POOL_SIZE", 5, 1, 20, problems),
+    connectTimeoutMs: readInt(env, "DB_CONNECT_TIMEOUT_MS", 5_000, 500, 60_000, problems),
+    queryTimeoutMs: readInt(env, "DB_QUERY_TIMEOUT_MS", 3_000, 100, 60_000, problems),
+  };
+}
+
 export function loadConfig(env: Env = process.env): Config {
   const problems: string[] = [];
 
   const config: Config = {
     nodeEnv: readEnum(env, "NODE_ENV", NODE_ENVS, "development", problems),
-    host: readHost(env, problems),
+    host: readHost(env, "HOST", "127.0.0.1", problems),
     port: readInt(env, "PORT", 3000, 0, 65535, problems),
     logLevel: readEnum(env, "LOG_LEVEL", LOG_LEVELS, "info", problems),
     trustProxy: readTrustProxy(env, problems),
     bodyLimit: readInt(env, "BODY_LIMIT_BYTES", 16 * 1024, 1024, 1024 * 1024, problems),
     requestTimeoutMs: readInt(env, "REQUEST_TIMEOUT_MS", 15_000, 1_000, 120_000, problems),
     shutdownTimeoutMs: readInt(env, "SHUTDOWN_TIMEOUT_MS", 10_000, 1_000, 120_000, problems),
+    db: readDbConfig(env, problems),
   };
 
   if (problems.length > 0) throw new ConfigError(problems);
   return config;
+}
+
+/** Configuración de la cuenta con permisos de creación de tablas (`npm run db:init`). */
+export function loadDbInitConfig(env: Env = process.env): DbConfig {
+  const problems: string[] = [];
+  const db = readDbConfig(env, problems, { user: "DB_INIT_USER", password: "DB_INIT_PASSWORD" });
+  if (problems.length > 0) throw new ConfigError(problems);
+  return db;
 }

@@ -1,7 +1,15 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import type { Config } from "./config.ts";
+import type { Database } from "./db/pool.ts";
 import { registerErrorHandling } from "./http/errors.ts";
 import { healthRoutes } from "./routes/health.ts";
+
+declare module "fastify" {
+  interface FastifyInstance {
+    /** Acceso a MySQL (pool compartido). Las rutas lo usan como `app.db.pool`. */
+    db: Database;
+  }
+}
 
 /** Campos que nunca deben aparecer en los logs. */
 export const REDACTED_LOG_PATHS = [
@@ -17,6 +25,8 @@ export const REDACTED_LOG_PATHS = [
 ];
 
 export interface BuildAppOptions {
+  /** Acceso a MySQL. La app cierra el pool al cerrarse (`app.close()`). */
+  db: Database;
   /** Destino alternativo de los logs (las pruebas lo usan para inspeccionarlos). */
   logStream?: { write(msg: string): void };
 }
@@ -25,7 +35,7 @@ export interface BuildAppOptions {
  * Construye la aplicación Fastify sin ponerla a escuchar.
  * Las pruebas la usan con `app.inject()`; `server.ts` la arranca.
  */
-export function buildApp(config: Config, options: BuildAppOptions = {}): FastifyInstance {
+export function buildApp(config: Config, options: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -41,6 +51,11 @@ export function buildApp(config: Config, options: BuildAppOptions = {}): Fastify
       // extra y convierte tipos ("2" → 2). Aquí se rechazan con 400.
       customOptions: { removeAdditional: false, coerceTypes: false, allErrors: false },
     },
+  });
+
+  app.decorate("db", options.db);
+  app.addHook("onClose", async () => {
+    await options.db.close();
   });
 
   // Solo se aceptan cuerpos JSON: se elimina el parser de texto plano que Fastify trae por defecto.

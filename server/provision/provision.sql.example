@@ -1,0 +1,24 @@
+-- Aprovisionamiento de DailyTask en el MySQL 8 de PRODUCCIÓN (NixOS).
+-- Lo ejecuta UNA VEZ un administrador de MySQL, sobre una COPIA de este archivo
+-- en la que sustituye las dos contraseñas. No guardes la copia en el repositorio.
+--
+--   cp provision.sql.example /ruta/privada/provision.sql   # editar contraseñas
+--   sudo mysql < /ruta/privada/provision.sql
+--
+-- Es idempotente y no destructivo: no borra nada y CREATE USER IF NOT EXISTS
+-- no cambia la contraseña de un usuario existente (para rotarla: ALTER USER).
+-- Los usuarios usan 'localhost' porque la API conecta por socket Unix.
+
+CREATE DATABASE IF NOT EXISTS dailytask
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+
+CREATE USER IF NOT EXISTS 'dailytask_migrator'@'localhost' IDENTIFIED BY 'CAMBIAR_CONTRASENA_MIGRATOR';
+CREATE USER IF NOT EXISTS 'dailytask_app'@'localhost'      IDENTIFIED BY 'CAMBIAR_CONTRASENA_APP';
+
+-- Crea las tablas (npm run db:init:prod). Sin DROP.
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES
+  ON dailytask.* TO 'dailytask_migrator'@'localhost';
+
+-- La API: solo datos, sin DDL ni privilegios administrativos.
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON dailytask.* TO 'dailytask_app'@'localhost';
