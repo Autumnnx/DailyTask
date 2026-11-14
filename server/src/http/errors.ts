@@ -31,13 +31,22 @@ export class AppError extends Error {
   readonly statusCode: number;
   readonly code: ErrorCode;
   readonly fields: Record<string, string> | undefined;
+  /** Datos adicionales seguros dentro de `error` (p. ej. `{ limit: 1000 }`). */
+  readonly extra: Record<string, number | string> | undefined;
 
-  constructor(statusCode: number, code: ErrorCode, message: string, fields?: Record<string, string>) {
+  constructor(
+    statusCode: number,
+    code: ErrorCode,
+    message: string,
+    fields?: Record<string, string>,
+    extra?: Record<string, number | string>,
+  ) {
     super(message);
     this.name = "AppError";
     this.statusCode = statusCode;
     this.code = code;
     this.fields = fields;
+    this.extra = extra;
   }
 }
 
@@ -78,7 +87,9 @@ export function toErrorBody(code: ErrorCode, message: string, fields?: Record<st
 
 function handleError(error: FastifyError | AppError | Error, request: FastifyRequest, reply: FastifyReply) {
   if (error instanceof AppError) {
-    return reply.status(error.statusCode).send(toErrorBody(error.code, error.message, error.fields));
+    const body = toErrorBody(error.code, error.message, error.fields);
+    if (error.extra) Object.assign(body.error, error.extra);
+    return reply.status(error.statusCode).send(body);
   }
 
   const fastifyError = error as FastifyError;

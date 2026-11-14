@@ -9,6 +9,7 @@ import { registerErrorHandling } from "./http/errors.ts";
 import { registerOriginCheck } from "./http/origin.ts";
 import { rateLimitOptions } from "./http/rate-limit.ts";
 import { healthRoutes } from "./routes/health.ts";
+import { taskRoutes } from "./tasks/routes.ts";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -88,7 +89,7 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
     async (api) => {
       await api.register(healthRoutes);
       await api.register(authRoutes, { prefix: "/auth", auth: config.auth, rateLimit: config.rateLimit });
-      // Fase 4: rutas de tareas (usar makeRequireAuth de auth/guard.ts).
+      await api.register(taskRoutes, { prefix: "/tasks", auth: config.auth, maxPerUser: config.tasks.maxPerUser });
     },
     { prefix: "/api" },
   );

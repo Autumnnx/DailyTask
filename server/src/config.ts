@@ -61,6 +61,7 @@ export interface Config {
   db: DbConfig;
   auth: AuthConfig;
   rateLimit: RateLimitConfig;
+  tasks: { maxPerUser: number };
 }
 
 export class ConfigError extends Error {
@@ -259,6 +260,7 @@ export function loadConfig(env: Env = process.env): Config {
     db: readDbConfig(env, problems),
     auth: readAuthConfig(env, nodeEnv, problems),
     rateLimit: readRateLimitConfig(env, problems),
+    tasks: { maxPerUser: readInt(env, "MAX_TASKS_PER_USER", 1_000, 1, 100_000, problems) },
   };
 
   if (problems.length > 0) throw new ConfigError(problems);
