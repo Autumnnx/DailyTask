@@ -45,6 +45,29 @@ describe("procesos reales contra el MySQL local", () => {
     assert.match(proc.output().stdout, /servidor cerrado/);
   });
 
+  it("17. una sesión creada sigue siendo válida tras reiniciar el proceso de la API", async () => {
+    const first = runScript("server.ts", serverEnv());
+    const url1 = await waitForListening(first);
+    const reg = await fetch(`${url1}/api/auth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "http://localhost:5173" },
+      body: JSON.stringify({ username: `reinicio${Date.now() % 100000}`, name: "Reinicio", password: "000000" }),
+    });
+    assert.equal(reg.status, 201);
+    const cookie = reg.headers.get("set-cookie")!.split(";")[0]!;
+    assert.match(cookie, /^dt_session=[A-Za-z0-9_-]{43}$/);
+    first.child.kill("SIGTERM");
+    assert.equal(await first.exited, 0);
+
+    const second = runScript("server.ts", serverEnv());
+    const url2 = await waitForListening(second);
+    const meRes = await fetch(`${url2}/api/auth/me`, { headers: { cookie } });
+    second.child.kill("SIGTERM");
+    await second.exited;
+    assert.equal(meRes.status, 200);
+    assert.equal(((await meRes.json()) as { user: { name: string } }).user.name, "Reinicio");
+  });
+
   it("también se cierra limpiamente con SIGINT", async () => {
     const proc = runScript("server.ts", serverEnv());
     await waitForListening(proc);

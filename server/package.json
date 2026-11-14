@@ -20,6 +20,9 @@
         "test:all": "npm test && npm run test:db"
     },
     "dependencies": {
+        "@fastify/cookie": "11.1.5",
+        "@fastify/rate-limit": "11.2.2",
+        "@node-rs/argon2": "2.2.2",
         "fastify": "5.12.8",
         "mysql2": "3.24.6"
     },

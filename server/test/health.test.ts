@@ -26,7 +26,7 @@ describe("GET /api/health (sin MySQL real)", () => {
   });
 
   it("devuelve 404 para métodos no registrados en la ruta", async () => {
-    const res = await app.inject({ method: "DELETE", url: "/api/health" });
+    const res = await app.inject({ method: "DELETE", url: "/api/health", headers: { origin: "http://localhost:5173" } });
     assert.equal(res.statusCode, 404);
     assert.equal(res.json().error.code, "NOT_FOUND");
   });

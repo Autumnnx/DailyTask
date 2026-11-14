@@ -27,6 +27,24 @@ export interface DbConfig {
   queryTimeoutMs: number;
 }
 
+export interface AuthConfig {
+  /** Orígenes permitidos en peticiones que modifican datos (verificación de `Origin`). */
+  allowedOrigins: string[];
+  /** Atributo `Secure` de la cookie de sesión. Obligatorio en producción. */
+  cookieSecure: boolean;
+  sessionIdleTtlMs: number;
+  sessionAbsoluteTtlMs: number;
+  sessionCleanupIntervalMs: number;
+  argon2: { memoryCost: number; timeCost: number; parallelism: number };
+}
+
+export interface RateLimitConfig {
+  globalPerMinute: number;
+  loginPerMinute: number;
+  loginPerUsernamePerMinute: number;
+  registerPerMinute: number;
+}
+
 export interface Config {
   nodeEnv: NodeEnv;
   host: string;
@@ -41,6 +59,8 @@ export interface Config {
   /** Tiempo máximo de cierre ordenado antes de forzar la salida, en ms. */
   shutdownTimeoutMs: number;
   db: DbConfig;
+  auth: AuthConfig;
+  rateLimit: RateLimitConfig;
 }
 
 export class ConfigError extends Error {
@@ -161,11 +181,74 @@ export function readDbConfig(
   };
 }
 
+const ORIGIN = /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?$/;
+const DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const HOUR_MS = 3_600_000;
+
+function readOrigins(env: Env, nodeEnv: NodeEnv, problems: string[]): string[] {
+  const raw = env.PUBLIC_ORIGIN?.trim();
+  if (!raw) {
+    if (nodeEnv === "production") problems.push("PUBLIC_ORIGIN es obligatoria en producción (p. ej. https://dominio).");
+    return DEV_ORIGINS;
+  }
+  const origins = raw.split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean);
+  if (origins.length === 0 || !origins.every((o) => ORIGIN.test(o))) {
+    problems.push("PUBLIC_ORIGIN debe ser una lista separada por comas de orígenes como https://dominio o http://localhost:5173.");
+    return DEV_ORIGINS;
+  }
+  if (nodeEnv === "production" && origins.some((o) => o.startsWith("http://"))) {
+    problems.push("PUBLIC_ORIGIN debe usar https en producción.");
+  }
+  return origins;
+}
+
+function readBool(env: Env, name: string, fallback: boolean, problems: string[]): boolean {
+  const raw = env[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  problems.push(`${name} debe ser true o false.`);
+  return fallback;
+}
+
+function readAuthConfig(env: Env, nodeEnv: NodeEnv, problems: string[]): AuthConfig {
+  const cookieSecure = readBool(env, "COOKIE_SECURE", nodeEnv === "production", problems);
+  if (nodeEnv === "production" && !cookieSecure) problems.push("COOKIE_SECURE=false no está permitido en producción.");
+
+  const idleHours = readInt(env, "SESSION_IDLE_TTL_HOURS", 168, 1, 8_760, problems);
+  const absoluteHours = readInt(env, "SESSION_ABSOLUTE_TTL_HOURS", 720, 1, 8_760, problems);
+  if (absoluteHours < idleHours) problems.push("SESSION_ABSOLUTE_TTL_HOURS no puede ser menor que SESSION_IDLE_TTL_HOURS.");
+
+  return {
+    allowedOrigins: readOrigins(env, nodeEnv, problems),
+    cookieSecure,
+    sessionIdleTtlMs: idleHours * HOUR_MS,
+    sessionAbsoluteTtlMs: absoluteHours * HOUR_MS,
+    sessionCleanupIntervalMs: readInt(env, "SESSION_CLEANUP_INTERVAL_MINUTES", 60, 1, 1_440, problems) * 60_000,
+    argon2: {
+      // Mínimos recomendados por OWASP para Argon2id: 19 MiB, 2 pasadas, 1 hilo.
+      memoryCost: readInt(env, "ARGON2_MEMORY_KIB", 19_456, 19_456, 1_048_576, problems),
+      timeCost: readInt(env, "ARGON2_TIME_COST", 2, 2, 10, problems),
+      parallelism: readInt(env, "ARGON2_PARALLELISM", 1, 1, 8, problems),
+    },
+  };
+}
+
+function readRateLimitConfig(env: Env, problems: string[]): RateLimitConfig {
+  return {
+    globalPerMinute: readInt(env, "RATE_LIMIT_GLOBAL_PER_MIN", 300, 1, 100_000, problems),
+    loginPerMinute: readInt(env, "RATE_LIMIT_LOGIN_PER_MIN", 10, 1, 10_000, problems),
+    loginPerUsernamePerMinute: readInt(env, "RATE_LIMIT_LOGIN_USER_PER_MIN", 5, 1, 10_000, problems),
+    registerPerMinute: readInt(env, "RATE_LIMIT_REGISTER_PER_MIN", 5, 1, 10_000, problems),
+  };
+}
+
 export function loadConfig(env: Env = process.env): Config {
   const problems: string[] = [];
+  const nodeEnv = readEnum(env, "NODE_ENV", NODE_ENVS, "development", problems);
 
   const config: Config = {
-    nodeEnv: readEnum(env, "NODE_ENV", NODE_ENVS, "development", problems),
+    nodeEnv,
     host: readHost(env, "HOST", "127.0.0.1", problems),
     port: readInt(env, "PORT", 3000, 0, 65535, problems),
     logLevel: readEnum(env, "LOG_LEVEL", LOG_LEVELS, "info", problems),
@@ -174,6 +257,8 @@ export function loadConfig(env: Env = process.env): Config {
     requestTimeoutMs: readInt(env, "REQUEST_TIMEOUT_MS", 15_000, 1_000, 120_000, problems),
     shutdownTimeoutMs: readInt(env, "SHUTDOWN_TIMEOUT_MS", 10_000, 1_000, 120_000, problems),
     db: readDbConfig(env, problems),
+    auth: readAuthConfig(env, nodeEnv, problems),
+    rateLimit: readRateLimitConfig(env, problems),
   };
 
   if (problems.length > 0) throw new ConfigError(problems);

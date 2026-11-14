@@ -75,6 +75,25 @@ export function rootPool(): Pool {
   });
 }
 
+/** Deja la base de pruebas con el esquema creado y sin datos. */
+export async function prepareSchema(): Promise<void> {
+  await resetTestDatabase();
+  const { createDatabase } = await import("../../src/db/pool.ts");
+  const { ensureSchema } = await import("../../src/db/schema.ts");
+  const db = createDatabase(initDbConfig());
+  try {
+    const conn = await db.pool.getConnection();
+    try {
+      const { problems } = await ensureSchema(conn);
+      if (problems.length > 0) throw new Error(`Esquema de pruebas inválido: ${problems.join("; ")}`);
+    } finally {
+      conn.release();
+    }
+  } finally {
+    await db.close();
+  }
+}
+
 /** Elimina las tablas de DailyTask de la base de pruebas para empezar desde cero. */
 export async function resetTestDatabase(): Promise<void> {
   const root = rootPool();

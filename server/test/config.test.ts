@@ -37,6 +37,7 @@ describe("loadConfig", () => {
     const config = loadConfig({
       ...UNIT_DB_ENV,
       NODE_ENV: "production",
+      PUBLIC_ORIGIN: "https://dailytask.example",
       HOST: "0.0.0.0",
       PORT: "8080",
       LOG_LEVEL: "warn",

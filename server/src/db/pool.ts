@@ -94,6 +94,27 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   POOL_CLOSED: "El pool de conexiones está cerrado.",
 };
 
+const UNAVAILABLE_CODES = new Set([
+  "ECONNREFUSED",
+  "ENOENT",
+  "ENOTFOUND",
+  "EACCES",
+  "ETIMEDOUT",
+  "DAILYTASK_DB_TIMEOUT",
+  "ECONNRESET",
+  "PROTOCOL_CONNECTION_LOST",
+  "ER_CON_COUNT_ERROR",
+  "ER_ACCESS_DENIED_ERROR",
+  "ER_BAD_DB_ERROR",
+]);
+
+/** ¿El error indica que MySQL no está disponible (y no un fallo de la consulta)? → HTTP 503. */
+export function isDbUnavailable(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === "string" && UNAVAILABLE_CODES.has(code)) return true;
+  return error instanceof Error && /pool is closed|queue limit reached/i.test(error.message);
+}
+
 export interface SafeDbError {
   code: string;
   message: string;

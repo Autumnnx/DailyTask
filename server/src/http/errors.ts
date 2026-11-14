@@ -1,4 +1,5 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { describeDbError, isDbUnavailable } from "../db/pool.ts";
 
 /**
  * Formato único de error de la API (ver docs/backend-planning/API.md §1.1):
@@ -98,6 +99,11 @@ function handleError(error: FastifyError | AppError | Error, request: FastifyReq
     request.log.info({ code: fastifyError.code, statusCode: status }, "petición rechazada");
     if (status === 429 && reply.getHeader("retry-after") === undefined) reply.header("retry-after", "60");
     return reply.status(status).send(toErrorBody(generic.code, generic.message));
+  }
+
+  if (isDbUnavailable(error)) {
+    request.log.warn({ db: describeDbError(error) }, "MySQL no disponible");
+    return reply.status(503).send(toErrorBody(GENERIC[503]!.code, GENERIC[503]!.message));
   }
 
   // 5xx o desconocido: detalle solo en el log, respuesta genérica.

@@ -1,13 +1,23 @@
+import cookie from "@fastify/cookie";
+import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
+import type { PublicUser } from "./auth/repository.ts";
+import { authRoutes } from "./auth/routes.ts";
 import type { Config } from "./config.ts";
 import type { Database } from "./db/pool.ts";
 import { registerErrorHandling } from "./http/errors.ts";
+import { registerOriginCheck } from "./http/origin.ts";
+import { rateLimitOptions } from "./http/rate-limit.ts";
 import { healthRoutes } from "./routes/health.ts";
 
 declare module "fastify" {
   interface FastifyInstance {
     /** Acceso a MySQL (pool compartido). Las rutas lo usan como `app.db.pool`. */
     db: Database;
+  }
+  interface FastifyRequest {
+    /** Usuario autenticado; lo rellena el preHandler `requireAuth`. */
+    user: PublicUser | null;
   }
 }
 
@@ -54,6 +64,7 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
   });
 
   app.decorate("db", options.db);
+  app.decorateRequest("user", null);
   app.addHook("onClose", async () => {
     await options.db.close();
   });
@@ -69,11 +80,15 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
   });
 
   registerErrorHandling(app);
+  registerOriginCheck(app, config.auth.allowedOrigins);
+  app.register(cookie);
+  app.register(rateLimit, rateLimitOptions(config.rateLimit));
 
   app.register(
     async (api) => {
       await api.register(healthRoutes);
-      // Fases posteriores: auth (Fase 3) y tasks (Fase 4) se registran aquí.
+      await api.register(authRoutes, { prefix: "/auth", auth: config.auth, rateLimit: config.rateLimit });
+      // Fase 4: rutas de tareas (usar makeRequireAuth de auth/guard.ts).
     },
     { prefix: "/api" },
   );
