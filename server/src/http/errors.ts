@@ -123,9 +123,18 @@ function handleError(error: FastifyError | AppError | Error, request: FastifyReq
   return reply.status(status === 503 ? 503 : 500).send(toErrorBody(body.code, body.message));
 }
 
-export function registerErrorHandling(app: FastifyInstance): void {
+type NotFoundHandler = (request: FastifyRequest, reply: FastifyReply) => unknown;
+
+/**
+ * Manejador de errores y de rutas inexistentes. Por defecto, 404 JSON; cuando se sirve
+ * el frontend se pasa un manejador que devuelve index.html para las rutas del SPA.
+ */
+export function registerErrorHandling(app: FastifyInstance, notFound?: NotFoundHandler): void {
   app.setErrorHandler(handleError);
-  app.setNotFoundHandler((_request, reply) => {
-    reply.status(404).send(toErrorBody("NOT_FOUND", GENERIC[404]!.message));
-  });
+  app.setNotFoundHandler(
+    notFound ??
+      ((_request, reply) => {
+        reply.status(404).send(toErrorBody("NOT_FOUND", GENERIC[404]!.message));
+      }),
+  );
 }

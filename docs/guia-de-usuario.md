@@ -2,25 +2,29 @@
 
 ## 1. Abrir la aplicación
 
-Visita la [demo de DailyTask](https://dailytask-ww8p.onrender.com). La aplicación muestra el inicio de sesión si no hay una sesión guardada en ese navegador.
+Abre la dirección donde esté desplegada DailyTask (en local, `http://localhost:5173`; ver [Desarrollo local](desarrollo-local.md)). Si no hay una sesión activa, se muestra el inicio de sesión. Mientras se comprueba la sesión aparece brevemente "Cargando…".
 
 ## 2. Crear una cuenta
 
 1. En la pantalla de inicio de sesión, selecciona **Crea una cuenta**.
-2. Escribe tu nombre, correo electrónico, contraseña y confirmación de contraseña.
-3. Usa un nombre de al menos 2 caracteres, un correo con formato válido y una contraseña de al menos 6 caracteres.
-4. Selecciona **Crear cuenta**. Si todo es válido, se crea la cuenta local y se abre el tablero.
+2. Escribe tu nombre, un nombre de usuario, una contraseña y su confirmación.
+3. Reglas:
+   - **Nombre:** entre 2 y 100 caracteres; es el que se muestra en la aplicación.
+   - **Nombre de usuario:** entre 3 y 30 caracteres; letras, números, `.`, `-` o `_`, empezando y terminando con letra o número. Se guarda en minúsculas (`Ana.Dev` y `ana.dev` son el mismo usuario).
+   - **Contraseña:** entre 6 y 128 caracteres. No hay otros requisitos.
+4. Selecciona **Crear cuenta**. Si todo es válido, se crea la cuenta y se abre el tablero con la sesión iniciada.
 
-No se permite registrar otra cuenta con el mismo correo dentro de los datos guardados en ese navegador. El correo se normaliza a minúsculas y se eliminan sus espacios al inicio y al final.
+No se pide correo electrónico. Si el nombre de usuario ya existe, se indica en el propio campo.
 
 ## 3. Iniciar y cerrar sesión
 
-- En **Inicia sesión**, introduce el correo y la contraseña usados durante el registro.
-- Un correo o contraseña incorrectos muestran un mensaje de error.
-- **Cerrar sesión** termina la sesión guardada y devuelve las rutas privadas a la pantalla de acceso.
-- Si ya tienes una sesión activa, las pantallas de registro e inicio de sesión te redirigen al tablero.
+- En **Inicia sesión**, introduce tu nombre de usuario y tu contraseña.
+- Si alguno es incorrecto se muestra "Usuario o contraseña incorrectos." (por seguridad no se indica cuál).
+- Tras varios intentos fallidos seguidos, el servidor pide esperar un momento antes de volver a intentarlo.
+- **Cerrar sesión** termina la sesión en el servidor y devuelve a la pantalla de acceso.
+- Si ya tienes una sesión activa, las pantallas de registro e inicio de sesión te llevan al tablero.
 
-La sesión permanece en el navegador hasta que se cierre sesión o se borren los datos locales del sitio.
+La sesión se mantiene al recargar o cerrar el navegador durante 7 días sin actividad (30 días como máximo). Cuando caduca, la aplicación vuelve al inicio de sesión con el aviso "Tu sesión ha caducado".
 
 ## 4. Usar el tablero
 
@@ -38,22 +42,26 @@ Las tareas de cada columna se ordenan por fecha de vencimiento ascendente y, cua
 
 1. Selecciona **Nueva tarea** (o **Crear mi primera tarea** si la lista está vacía).
 2. Completa el título, la descripción opcional, la fecha de vencimiento, la prioridad y el estado.
-3. Selecciona **Crear tarea**.
+3. Selecciona **Crear tarea**. El botón muestra "Guardando…" hasta que el servidor responde.
 
-Validaciones aplicadas:
+Validaciones:
 
 - El título debe tener entre 3 y 80 caracteres, sin contar espacios al principio o al final.
 - La descripción puede tener hasta 400 caracteres.
-- Debe seleccionarse una fecha de vencimiento.
+- Debe seleccionarse una fecha de vencimiento válida.
 - La prioridad puede ser **Alta**, **Media** o **Baja**.
 
 La fecha y prioridad iniciales son la fecha de hoy y **Media**. El estado inicial es **Pendiente**.
 
+Cada cuenta puede guardar hasta **1.000 tareas**. Al llegar al límite, el formulario lo indica y hay que eliminar alguna antes de crear otra.
+
+Si algo falla (por ejemplo, el servidor no está disponible), el formulario sigue abierto con lo que escribiste y muestra el motivo.
+
 ## 6. Editar, cambiar estado y eliminar
 
-- Usa la acción de edición de la tarjeta para abrir el formulario con sus valores actuales; guarda los cambios con **Guardar cambios**.
-- Cambia el estado de la tarea desde las acciones disponibles en la tarjeta.
-- Usa la acción para eliminar y confirma en el diálogo. La eliminación es permanente en los datos locales de ese navegador.
+- **Editar** abre el formulario con los valores actuales; guarda con **Guardar cambios**.
+- El círculo de la tarjeta marca la tarea como completada o la reabre; el selector de la tarjeta permite elegir cualquier estado.
+- **Eliminar** pide confirmación. La eliminación es permanente.
 
 Una tarea que pasa a **Completada** registra cuándo se completó. Si se edita sin salir de ese estado, se conserva esa fecha; si se mueve a otro estado, la fecha de finalización se elimina.
 
@@ -64,8 +72,8 @@ Una tarea que pasa a **Completada** registra cuándo se completó. Si se edita s
 - **Limpiar filtros** restablece la búsqueda y ambos selectores.
 - Si se elige un estado concreto, el tablero muestra únicamente la columna correspondiente.
 
-El resumen de tareas corresponde a todas las tareas del usuario, no solamente a las visibles tras aplicar filtros.
+El resumen de tareas corresponde a todas tus tareas, no solamente a las visibles tras aplicar filtros.
 
-## 8. Persistencia y datos entre dispositivos
+## 8. Datos y dispositivos
 
-Las cuentas, la sesión y las tareas se guardan en el almacenamiento local del navegador. La información no se comparte entre usuarios de distintos navegadores, perfiles o dispositivos y no existe recuperación de contraseña en un servidor. Para detalles y límites, consulta [Datos, privacidad y seguridad](datos-y-seguridad.md).
+Las cuentas y las tareas se guardan en el servidor (base de datos MySQL), así que puedes entrar con tu usuario desde cualquier navegador o dispositivo y verás las mismas tareas. Cada usuario solo puede ver y modificar sus propias tareas. No existe recuperación de contraseña (no se pide correo). Más detalles en [Datos, privacidad y seguridad](datos-y-seguridad.md).

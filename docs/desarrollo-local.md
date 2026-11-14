@@ -1,12 +1,20 @@
 # Desarrollo local
 
+DailyTask tiene dos partes que se ejecutan por separado en desarrollo:
+
+| Parte | Carpeta | Puerto |
+|---|---|---|
+| Frontend (React + Vite) | raíz del repositorio | `5173` |
+| API (Fastify + TypeScript) | `server/` | `3000` |
+| MySQL 8.4 de desarrollo (contenedor) | `server/dev/mysql.sh` | `3307` (solo `127.0.0.1`) |
+
+Vite reenvía las peticiones `/api` a la API, de modo que el navegador ve un solo origen y la cookie de sesión funciona sin CORS.
+
 ## Requisitos
 
-- Git para clonar el repositorio.
-- Node.js `^20.19.0` o `>=22.12.0`.
-- npm, incluido con Node.js.
-
-La versión mínima de Node.js es importante porque Vite 7 no es compatible con Node.js 18.
+- Git.
+- Node.js `>=22.18` y npm.
+- Podman o Docker (solo para el MySQL de desarrollo).
 
 ## Obtener el código
 
@@ -15,63 +23,61 @@ git clone https://github.com/Autumnnx/DailyTask.git
 cd DailyTask
 ```
 
-## Instalar y ejecutar
+## Puesta en marcha
 
 ```bash
-npm install
-npm run dev
+# Terminal 1 — API y base de datos
+cd server
+npm ci
+cp .env.example .env     # valores solo de desarrollo
+npm run db:dev up        # crea/arranca el contenedor MySQL y las bases dailytask_dev y dailytask_test
+npm run db:init          # crea las tablas (idempotente)
+npm run dev              # API en http://127.0.0.1:3000
+
+# Terminal 2 — frontend (raíz del repositorio)
+npm ci
+npm run dev              # http://localhost:5173
 ```
 
-Abre la URL que muestre Vite (habitualmente `http://localhost:5173`). La aplicación se recarga al guardar cambios en el código.
+Detener: `Ctrl+C` en cada terminal y `npm run db:dev down` (en `server/`) para parar MySQL conservando los datos. Más opciones del contenedor en [`server/README.md`](../server/README.md).
 
-## Comandos disponibles
+## Comandos
+
+Frontend (raíz):
 
 ```bash
-npm run dev        # servidor de desarrollo Vite
+npm run dev        # Vite con proxy /api → 127.0.0.1:3000
 npm run typecheck  # comprobación de TypeScript
-npm run build      # comprobación de TypeScript y compilación de producción
-npm run preview    # vista local de la compilación ya generada
+npm run build      # TypeScript + compilación de producción en dist/
+npm run preview    # sirve dist/ en :4173, también con proxy /api
 ```
 
-`npm run build` genera los archivos estáticos en `dist/`. Para probar esa compilación:
+Para que `npm run preview` pueda crear o modificar datos, arranca la API con ese origen permitido, por ejemplo `PUBLIC_ORIGIN=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173` en `server/.env`.
 
-```bash
-npm run build
-npm run preview
-```
+API (`server/`): `npm test` (pruebas sin base de datos), `npm run test:db` (pruebas contra el MySQL local), `npm run typecheck`, `npm run build`. Lista completa en [`server/README.md`](../server/README.md).
 
 ## Áreas de trabajo habituales
 
-- Cambios de pantallas: `src/pages/`.
-- Componentes visuales: `src/components/`.
-- Reglas de tareas: `src/hooks/useTasks.ts` y `src/utils/taskUtils.ts`.
-- Tipos: `src/types/index.ts`.
-- Validaciones: `src/utils/validators.ts`.
-- Claves y operaciones de almacenamiento: `src/utils/storage.ts`.
-- Estilos: `src/styles/`.
-- Ajustes de compilación: `vite.config.ts` y archivos `tsconfig*.json`.
-- Despliegue automático de Render: `render.yaml`.
-
-Más detalles del flujo de componentes y almacenamiento están en [Arquitectura](arquitectura.md).
+- Pantallas: `src/pages/`. Componentes: `src/components/`. Estilos: `src/styles/`.
+- Sesión del frontend: `src/context/AuthContext.tsx`. Cliente HTTP: `src/utils/api.ts`.
+- Tareas en el frontend: `src/hooks/useTasks.ts`; filtros y orden: `src/utils/taskUtils.ts`.
+- Validaciones del frontend: `src/utils/validators.ts` (mismas reglas que el servidor).
+- API: `server/src/` (`auth/`, `tasks/`, `db/`, `http/`).
 
 ## Solución de problemas
 
 ### La compilación indica que Node.js no es compatible
 
-Comprueba `node --version`. Vite 7 requiere Node.js `^20.19.0` o `>=22.12.0`; actualiza Node y vuelve a ejecutar `npm install`.
+Comprueba `node --version` (se necesita `>=22.18`).
 
-### `npm run dev` no abre la aplicación
+### La aplicación muestra "El servicio no está disponible"
 
-Lee la URL y los errores impresos en la terminal. Si el puerto predeterminado está ocupado, Vite puede seleccionar otro puerto y mostrar la dirección correcta.
+La API o MySQL no responden. Comprueba que `npm run dev` sigue activo en `server/` y que `npm run db:dev status` muestra el contenedor en marcha; `curl http://127.0.0.1:3000/api/health` debe devolver `{"status":"ok"}`.
 
-### No aparecen los datos de otro equipo o navegador
+### La API no arranca y pide ejecutar `npm run db:init`
 
-Es el comportamiento previsto: la persistencia se realiza con `localStorage` en el navegador actual, no en un servidor. Consulta [Datos, privacidad y seguridad](datos-y-seguridad.md).
+Las tablas no existen en la base configurada. Ejecuta `npm run db:init` en `server/`.
 
-### El contenido de la demo no refleja el último cambio
+### Las peticiones que guardan datos devuelven 403
 
-La demo pública se actualiza al desplegar los cambios del repositorio conectado a Render. Revisa el último despliegue y sus logs en Render. Para probar una compilación local, utiliza `npm run build` y `npm run preview`.
-
-## Dependencias
-
-Las versiones y scripts se declaran en `package.json`; `package-lock.json` registra la resolución de npm. Si se cambia una dependencia, actualiza ambos según corresponda y verifica al menos `npm run build`.
+El origen del navegador no está en `PUBLIC_ORIGIN` (ver la nota sobre `npm run preview`).

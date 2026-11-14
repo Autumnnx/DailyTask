@@ -8,6 +8,7 @@ import type { Database } from "./db/pool.ts";
 import { registerErrorHandling } from "./http/errors.ts";
 import { registerOriginCheck } from "./http/origin.ts";
 import { rateLimitOptions } from "./http/rate-limit.ts";
+import { registerStatic, spaNotFoundHandler } from "./http/static.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { taskRoutes } from "./tasks/routes.ts";
 
@@ -34,6 +35,38 @@ export const REDACTED_LOG_PATHS = [
   "passwordHash",
   "*.passwordHash",
 ];
+
+/**
+ * Política de contenido compatible con la aplicación real: scripts y estilos propios
+ * (Vite no genera código en línea), Google Fonts (index.html), fetch solo al mismo origen.
+ * React aplica los estilos dinámicos por CSSOM, que la CSP no bloquea.
+ */
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+/** Cabeceras de seguridad para todas las respuestas (API, HTML y recursos estáticos). */
+function buildSecurityHeaders(production: boolean): [string, string][] {
+  const headers: [string, string][] = [
+    ["x-content-type-options", "nosniff"],
+    ["x-frame-options", "DENY"],
+    ["referrer-policy", "same-origin"],
+    ["cross-origin-opener-policy", "same-origin"],
+    ["content-security-policy", CONTENT_SECURITY_POLICY],
+  ];
+  // HSTS solo en producción (detrás de HTTPS); sin includeSubDomains para no afectar a otros subdominios.
+  if (production) headers.push(["strict-transport-security", "max-age=31536000"]);
+  return headers;
+}
 
 export interface BuildAppOptions {
   /** Acceso a MySQL. La app cierra el pool al cerrarse (`app.close()`). */
@@ -70,11 +103,13 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
     await options.db.close();
   });
 
+  const securityHeaders = buildSecurityHeaders(config.nodeEnv === "production");
+
   // Solo se aceptan cuerpos JSON: se elimina el parser de texto plano que Fastify trae por defecto.
   app.removeContentTypeParser("text/plain");
 
   app.addHook("onSend", async (request, reply) => {
-    reply.header("x-content-type-options", "nosniff");
+    for (const [name, value] of securityHeaders) reply.header(name, value);
     // Ruta normalizada del enrutador (no el texto de la URL, que puede venir codificado);
     // sin ruta (404) también se marca como no cacheable.
     const route = request.routeOptions.url;
@@ -83,7 +118,7 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
     }
   });
 
-  registerErrorHandling(app);
+  registerErrorHandling(app, config.staticDir ? spaNotFoundHandler : undefined);
   registerOriginCheck(app, config.auth.allowedOrigins);
   app.register(cookie);
   app.register(rateLimit, rateLimitOptions(config.rateLimit));
@@ -96,6 +131,9 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
     },
     { prefix: "/api" },
   );
+
+  // Frontend compilado en el mismo origen (producción). Sin STATIC_DIR, solo API (desarrollo con Vite).
+  if (config.staticDir) registerStatic(app, config.staticDir);
 
   return app;
 }

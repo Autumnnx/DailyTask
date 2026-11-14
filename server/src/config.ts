@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 
 /**
  * Lectura y validación de la configuración desde variables de entorno.
@@ -58,6 +59,11 @@ export interface Config {
   requestTimeoutMs: number;
   /** Tiempo máximo de cierre ordenado antes de forzar la salida, en ms. */
   shutdownTimeoutMs: number;
+  /**
+   * Carpeta `dist/` del frontend compilado (ruta absoluta). Si está definida, Fastify sirve
+   * la aplicación React en el mismo origen que /api; si no, solo la API.
+   */
+  staticDir: string | undefined;
   db: DbConfig;
   auth: AuthConfig;
   rateLimit: RateLimitConfig;
@@ -141,8 +147,11 @@ function readSecret(env: Env, name: string, problems: string[]): string | undefi
     return undefined;
   }
   if (file) {
+    // Ruta relativa + systemd LoadCredential: se busca en $CREDENTIALS_DIRECTORY (p. ej. "db_password").
+    const credentialsDir = env.CREDENTIALS_DIRECTORY?.trim();
+    const path = !isAbsolute(file) && credentialsDir ? join(credentialsDir, file) : file;
     try {
-      return readFileSync(file, "utf8").replace(/\r?\n$/, "");
+      return readFileSync(path, "utf8").replace(/\r?\n$/, "");
     } catch {
       problems.push(`${name}_FILE no se pudo leer (comprueba la ruta y los permisos).`);
       return undefined;
@@ -235,6 +244,20 @@ function readAuthConfig(env: Env, nodeEnv: NodeEnv, problems: string[]): AuthCon
   };
 }
 
+/** STATIC_DIR opcional: debe ser una carpeta con `index.html` (la salida de `npm run build` del frontend). */
+function readStaticDir(env: Env, problems: string[]): string | undefined {
+  const raw = env.STATIC_DIR?.trim();
+  if (!raw) return undefined;
+  const dir = resolve(raw);
+  try {
+    if (statSync(dir).isDirectory() && existsSync(join(dir, "index.html"))) return dir;
+  } catch {
+    // se informa abajo
+  }
+  problems.push("STATIC_DIR debe ser una carpeta existente que contenga index.html (el dist/ del frontend compilado).");
+  return undefined;
+}
+
 function readRateLimitConfig(env: Env, problems: string[]): RateLimitConfig {
   return {
     globalPerMinute: readInt(env, "RATE_LIMIT_GLOBAL_PER_MIN", 300, 1, 100_000, problems),
@@ -261,6 +284,7 @@ export function loadConfig(env: Env = process.env): Config {
     auth: readAuthConfig(env, nodeEnv, problems),
     rateLimit: readRateLimitConfig(env, problems),
     tasks: { maxPerUser: readInt(env, "MAX_TASKS_PER_USER", 1_000, 1, 100_000, problems) },
+    staticDir: readStaticDir(env, problems),
   };
 
   if (problems.length > 0) throw new ConfigError(problems);

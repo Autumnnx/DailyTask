@@ -1,119 +1,92 @@
 # Arquitectura y modelo de datos
 
+Visión general para orientarse en el código. La arquitectura detallada (decisiones, conexión con MySQL, plan de despliegue) está en [`backend-planning/ARCHITECTURE.md`](backend-planning/ARCHITECTURE.md) y el contrato de la API en [`backend-planning/API.md`](backend-planning/API.md).
+
 ## Visión general
 
-DailyTask es una aplicación de una sola página (SPA) que se ejecuta en el navegador. Vite compila el código TypeScript y React renderiza las pantallas. React Router gestiona las rutas; el estado de usuario y tareas se conserva en `localStorage`.
-
 ```text
-Navegador
-├── React + React Router
-│   ├── AuthProvider ── sesión y operaciones de cuenta
-│   ├── Páginas ─────── registro, acceso y tablero
-│   └── Componentes ── formularios, filtros, columnas y tarjetas
-├── Hooks ───────────── lógica de tareas
-├── Utilidades ──────── validación, hash, fechas y almacenamiento
-└── localStorage ────── cuentas, sesión y tareas de este origen
+Navegador (React SPA)
+└── fetch('/api/...')  — cookie HttpOnly dt_session (mismo origen)
+        │
+        ▼
+API Fastify (server/)  — validación, autenticación, autorización, límites
+        │  mysql2, consultas parametrizadas
+        ▼
+MySQL 8  — users · tasks · sessions
 ```
 
-No hay backend ni llamadas a una API remota para las funciones de autenticación o gestión de tareas.
+En desarrollo, Vite (`:5173`) reenvía `/api` a la API (`:3000`). En producción se servirán bajo el mismo dominio (pendiente de la fase de despliegue).
 
-## Tecnologías y herramientas
+## Tecnologías
 
-- **React 19:** composición de la interfaz con componentes y hooks.
-- **TypeScript 5:** tipos de datos y comprobación estática.
-- **Vite 7:** desarrollo local y compilación de producción.
-- **React Router 7:** navegación cliente entre las vistas.
-- **CSS:** estilos propios, separados en variables, estilos base, componentes y páginas.
-- **Web Storage API:** persistencia local en `localStorage`.
+| Parte | Tecnologías |
+|---|---|
+| Frontend | React 19, TypeScript 5, Vite 7, React Router 7, CSS propio |
+| API | Node.js, Fastify 5, TypeScript, `@fastify/cookie`, `@fastify/rate-limit`, `@node-rs/argon2` |
+| Datos | MySQL 8 (`mysql2/promise`) |
 
-## Rutas y control de navegación
+## Rutas del frontend
 
 | Ruta | Pantalla | Acceso |
 |---|---|---|
-| `/login` | Inicio de sesión | Solo sin sesión activa |
-| `/registro` | Registro | Solo sin sesión activa |
-| `/` | Tablero | Requiere usuario local autenticado |
-| Cualquier otra ruta | Página no encontrada | Pública |
+| `/login` | Inicio de sesión | Solo sin sesión |
+| `/registro` | Registro | Solo sin sesión |
+| `/` | Tablero | Requiere sesión |
+| `*` | Página no encontrada | Libre |
 
-`ProtectedRoute` redirige al acceso si no encuentra un usuario en el contexto. `PublicOnlyRoute` evita que un usuario con sesión activa vuelva a registro o acceso. Estas reglas controlan la navegación de la interfaz, no sustituyen autorización de backend.
+`ProtectedRoute` y `PublicOnlyRoute` esperan a que termine la comprobación inicial de la sesión (`GET /api/auth/me`) antes de redirigir.
 
 ## Organización del código
 
-| Ruta | Responsabilidad |
-|---|---|
-| `src/main.tsx` | Monta React, `BrowserRouter`, `AuthProvider` y estilos globales |
-| `src/App.tsx` | Declara rutas y restricciones de acceso |
-| `src/pages/` | Pantallas de acceso, registro, tablero y página no encontrada |
-| `src/components/` | Navbar, formularios, tarjetas, tablero, filtros, estadísticas y diálogos |
-| `src/context/AuthContext.tsx` | Registro, acceso, salida y usuario activo |
-| `src/hooks/useTasks.ts` | Consultas y operaciones CRUD de tareas |
-| `src/types/index.ts` | Tipos `User`, `SessionUser`, `Task`, prioridades y estados |
-| `src/utils/storage.ts` | Lectura, escritura y eliminación de datos locales |
-| `src/utils/crypto.ts` | Identificadores, sal y cálculo del hash de contraseña |
-| `src/utils/validators.ts` | Validación de formularios |
-| `src/utils/taskUtils.ts` | Búsqueda, filtrado y ordenamiento |
-| `src/utils/dates.ts` | Cálculos y formato de fechas |
-| `src/styles/` | Variables, estilos base, componentes y páginas |
+```text
+src/
+├── context/AuthContext.tsx   Sesión: /api/auth/me al cargar, login, registro, logout
+├── hooks/useTasks.ts         Tareas: carga y operaciones contra /api/tasks
+├── utils/api.ts              Cliente fetch común (errores, sesión caducada)
+├── utils/validators.ts       Validaciones (mismas reglas que el servidor)
+├── utils/taskUtils.ts        Búsqueda, filtros y orden en el cliente
+├── pages/, components/       Pantallas y componentes visuales
+└── types/index.ts            SessionUser, Task, TaskInput, TaskFilters
+server/src/
+├── auth/                     Registro, login, logout, /me, sesiones, Argon2id
+├── tasks/                    CRUD, estados, búsqueda, límite de 1.000 tareas
+├── db/                       Pool MySQL, esquema e inicialización
+└── http/                     Errores, verificación de Origin, límites de peticiones
+```
 
 ## Flujo de autenticación
 
-1. `AuthProvider` carga el identificador de sesión de `localStorage` y busca el usuario local correspondiente.
-2. Al registrar, valida los campos, normaliza el correo, genera una sal y calcula el hash de contraseña.
-3. Guarda el usuario y el identificador de sesión; la interfaz recibe un `SessionUser` que excluye el hash y la sal.
-4. Al iniciar sesión, busca el correo y vuelve a calcular el hash con la sal guardada para comparar.
-5. Al cerrar sesión, elimina la clave de sesión y limpia el estado React del usuario actual.
-
-Esta es una simulación local. El flujo no envía credenciales a un servidor ni proporciona identidad o autorización confiable.
+1. Registro o login → la API valida, crea una sesión y responde con la cookie `dt_session`.
+2. El navegador envía la cookie en cada petición; la API identifica al usuario por ella.
+3. Si la sesión caduca o se revoca, la API responde 401 y el frontend vuelve al login.
 
 ## Flujo de tareas
 
-`DashboardPage` obtiene el usuario del contexto y pasa su identificador a `useTasks`. El hook:
-
-- carga la lista almacenada y guarda las actualizaciones en `localStorage`;
-- filtra la lista visible por `userId`;
-- crea tareas con identificador y marcas de tiempo;
-- actualiza tareas únicamente si coinciden tanto el identificador como el usuario actual;
-- cambia el estado o elimina únicamente las tareas de ese usuario.
-
-La página combina las tareas con los filtros de búsqueda/estado/prioridad. `TaskBoard` agrupa y ordena las tareas visibles por vencimiento y luego por prioridad. Los controles del tablero delegan las ediciones al hook.
+El tablero carga todas las tareas del usuario (`GET /api/tasks`). Crear, editar, cambiar estado y eliminar llaman a la API y el estado de la pantalla solo cambia con la respuesta confirmada del servidor. La búsqueda, los filtros, el orden y las estadísticas se calculan en el navegador sobre esa lista.
 
 ## Modelo de datos
 
-### Usuario
+### Usuario (`SessionUser`)
 
 | Campo | Descripción |
 |---|---|
-| `id` | Identificador único |
-| `name` | Nombre mostrado en la interfaz |
-| `email` | Correo normalizado a minúsculas |
-| `passwordHash` | Hash calculado en el navegador |
-| `salt` | Sal asociada al hash |
-| `createdAt` | Fecha de creación en formato ISO |
+| `id` | UUID generado por el servidor |
+| `username` | 3–30 caracteres, en minúsculas, único |
+| `name` | Nombre visible (2–100) |
 
-La interfaz utiliza `SessionUser` (`id`, `name`, `email`), que no incluye hash ni sal.
+En la base de datos se guarda además el hash Argon2id de la contraseña, que nunca sale del servidor.
 
-### Tarea
+### Tarea (`Task`)
 
 | Campo | Descripción |
 |---|---|
-| `id` | Identificador único |
-| `userId` | Identificador del propietario local |
-| `title` | Título de 3 a 80 caracteres tras eliminar espacios extremos |
-| `description` | Descripción opcional de hasta 400 caracteres |
-| `dueDate` | Fecha de vencimiento `YYYY-MM-DD` |
+| `id` | UUID generado por el servidor |
+| `title` | 3–80 caracteres |
+| `description` | Hasta 400 caracteres (opcional) |
+| `dueDate` | Fecha `YYYY-MM-DD` |
 | `priority` | `alta`, `media` o `baja` |
 | `status` | `pendiente`, `en_progreso` o `completada` |
-| `createdAt`, `updatedAt` | Marcas de tiempo ISO |
-| `completedAt` | Marca ISO opcional al completar la tarea |
+| `createdAt`, `updatedAt` | Marcas de tiempo ISO 8601 (UTC) del servidor |
+| `completedAt` | Fecha de finalización o `null` |
 
-## Persistencia
-
-Se usan tres claves de almacenamiento por origen:
-
-| Clave | Contenido |
-|---|---|
-| `dailytask.users` | Lista de cuentas locales |
-| `dailytask.session` | Identificador del usuario conectado |
-| `dailytask.tasks` | Lista de tareas de las cuentas locales |
-
-Las claves existen en el navegador del usuario y no en Render. Borrar los datos del sitio elimina la información persistida.
+Esquema MySQL completo en [`backend-planning/DATABASE.md`](backend-planning/DATABASE.md).

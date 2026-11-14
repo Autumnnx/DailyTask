@@ -77,11 +77,12 @@ src/
 ├── utils/         Cliente de la API (api.ts), validaciones, fechas y utilidades
 ├── App.tsx        Definición de rutas
 └── main.tsx       Punto de entrada
-server/            API REST (Fastify + MySQL)
+server/            API REST (Fastify + MySQL); en producción sirve también el frontend
+deploy/            Despliegue en NixOS: módulo, ejemplo y manual
 docs/              Guías y documentación del proyecto
 render.yaml        Despliegue anterior (solo frontend); fuera del alcance actual
 ```
 
 ## Despliegue
 
-El despliegue previsto es en un servidor propio (NixOS) con MySQL nativo, detrás de un proxy HTTPS; está pendiente (ver `docs/backend-planning/ROADMAP.md`). El despliegue anterior en Render, solo frontend, está fuera del alcance actual ([documento histórico](docs/despliegue-render.md)).
+Producción: `https://dailytask.korikashi.uk`. Caddy (VPS Oracle) hace de proxy HTTPS por Tailscale hacia un único proceso Fastify en el HomeLab NixOS (puerto 8088), que sirve la API y el frontend compilado, con MySQL 8.4 nativo. El despliegue es manual: [`deploy/README.md`](deploy/README.md). El despliegue anterior en Render, solo frontend, está fuera del alcance actual ([documento histórico](docs/despliegue-render.md)).

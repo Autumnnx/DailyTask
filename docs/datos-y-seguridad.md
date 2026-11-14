@@ -1,50 +1,37 @@
 # Datos, privacidad y seguridad
 
-## Alcance
-
-DailyTask es una demostración académica de frontend. No cuenta con una API, una base de datos remota, un proveedor de identidad ni controles de acceso en un servidor. La pantalla de inicio de sesión y sus protecciones son funcionalidad local del navegador; no deben considerarse un mecanismo de seguridad para datos sensibles.
+Resumen para usuarios y evaluadores. El detalle técnico está en [`backend-planning/SECURITY.md`](backend-planning/SECURITY.md) y [`backend-planning/DATABASE.md`](backend-planning/DATABASE.md).
 
 ## Dónde se guardan los datos
 
-La aplicación utiliza `localStorage` bajo el origen del sitio abierto. Las claves son:
-
-| Clave | Información |
-|---|---|
-| `dailytask.users` | Cuentas creadas en ese navegador |
-| `dailytask.session` | ID de la sesión local actual |
-| `dailytask.tasks` | Tareas creadas en ese navegador |
-
-Esto significa que:
-
-- Los datos persisten al cerrar o recargar la página, mientras no se borren los datos del sitio.
-- Cada navegador, perfil de navegador, dispositivo y origen mantiene su propio almacenamiento.
-- Crear una tarea en la demo no la guarda en Render ni la hace visible para otros dispositivos.
-- No existe sincronización, recuperación de cuenta ni copia de seguridad automática.
-- Quien tenga acceso al perfil del navegador puede inspeccionar o modificar el almacenamiento local.
+- Cuentas, sesiones y tareas se guardan en el **servidor**, en una base de datos MySQL 8.
+- El navegador no guarda usuarios ni tareas: el frontend no usa `localStorage` ni `sessionStorage`.
+- El único dato en el navegador es la cookie de sesión `dt_session`, que el servidor crea al iniciar sesión.
+- Puedes entrar desde cualquier navegador o dispositivo con tu usuario y verás las mismas tareas.
 
 ## Contraseñas
 
-En el flujo habitual, el registro crea una sal aleatoria y calcula un hash SHA-256 en el navegador. El código guarda el hash y la sal, no la contraseña en texto plano; la interfaz usa un objeto de sesión sin esos campos.
+- Solo se pide que tengan entre 6 y 128 caracteres; no hay reglas de complejidad. Usa una contraseña que no utilices en otros servicios.
+- Nunca se guardan en texto plano: el servidor guarda un hash **Argon2id** con sal aleatoria.
+- No hay recuperación de contraseña (la aplicación no pide correo electrónico).
 
-**Esto no convierte la autenticación en segura para producción.** SHA-256 es una función rápida y no está diseñada para almacenar contraseñas; además, todo el estado y la lógica residen bajo el control del navegador. El código incluye también una alternativa de hash simple para contextos donde no está disponible `crypto.subtle`, la cual no debe considerarse criptográfica. No reutilices contraseñas reales ni guardes información confidencial en esta demo.
+## Sesión
 
-Una aplicación de producción debería delegar la autenticación y autorización a un servicio backend o proveedor de identidad, almacenar contraseñas con un algoritmo apropiado para contraseñas y mantener los datos protegidos del lado del servidor.
+- La cookie `dt_session` es `HttpOnly` (el código JavaScript de la página no puede leerla) y `SameSite=Lax`; en producción, además, `Secure` (solo HTTPS).
+- En el servidor solo se guarda un resumen (SHA-256) del token, no el token.
+- Caduca tras 7 días sin actividad o, en cualquier caso, a los 30 días. **Cerrar sesión** la revoca en el servidor.
 
-## Aislamiento de tareas
+## Separación entre usuarios
 
-El código filtra y modifica tareas por el `userId` local para que la interfaz de cada cuenta muestre sus propias tareas. Como no existe backend, esto es separación lógica del lado del cliente y no una barrera de seguridad: los datos del almacenamiento pueden manipularse desde el navegador.
+Cada usuario solo puede ver, modificar y eliminar sus propias tareas. El servidor identifica al usuario por la sesión, nunca por datos enviados desde el navegador, y una tarea ajena se responde como inexistente.
 
-## Almacenamiento limitado o no disponible
+## Protección frente a abusos
 
-`src/utils/storage.ts` centraliza las operaciones de lectura y escritura. Las lecturas inválidas devuelven un valor inicial y algunos errores de acceso/escritura se manejan para permitir que la interfaz siga funcionando en memoria. Si el navegador bloquea el almacenamiento o alcanza su cuota, los cambios podrían no persistir después de recargar.
+- Límite de intentos de inicio de sesión (por dirección IP y por nombre de usuario) y de registros por IP, y un límite general de peticiones.
+- Las peticiones que modifican datos solo se aceptan desde el origen de la aplicación (protección CSRF) y en formato JSON.
+- Los mensajes de error no muestran detalles internos del servidor ni de la base de datos.
 
-## Borrar los datos locales
+## Límites
 
-Para borrar los datos de DailyTask, elimina los datos del sitio desde la configuración del navegador para el origen correspondiente. Esto puede cerrar la sesión y eliminar de forma permanente las cuentas y tareas guardadas localmente. No hay un mecanismo de recuperación desde Render.
-
-## Recomendaciones de uso
-
-- Usa datos de prueba y una contraseña única para la demostración.
-- No almacenes información personal, financiera, académica sensible ni secretos.
-- Cierra la sesión cuando compartas el mismo perfil del navegador.
-- Para un despliegue con usuarios reales, implementa autenticación, autorización, persistencia y validaciones en un backend antes de usar datos reales.
+- Máximo de 1.000 tareas por usuario.
+- Proyecto académico, desplegado durante un periodo corto: no incluye copias de seguridad automáticas para usuarios, exportación de datos ni eliminación de cuenta desde la interfaz.

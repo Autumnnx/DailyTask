@@ -118,6 +118,13 @@ describe("configuración de MySQL", () => {
     assert.equal(config.db.password, "desde-fichero");
   });
 
+  it("con ruta relativa, DB_PASSWORD_FILE se busca en $CREDENTIALS_DIRECTORY (systemd LoadCredential)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dailytask-cred-"));
+    writeFileSync(join(dir, "db_password"), "desde-credencial\n");
+    const config = loadConfig({ ...UNIT_DB_ENV, DB_PASSWORD_FILE: "db_password", CREDENTIALS_DIRECTORY: dir });
+    assert.equal(config.db.password, "desde-credencial");
+  });
+
   it("rechaza DB_PASSWORD y DB_PASSWORD_FILE a la vez, y ficheros ilegibles, sin mostrar valores", () => {
     const secret = "otro-secreto-xyz";
     const both = problemsOf(() => loadConfig({ ...UNIT_DB_ENV, DB_PASSWORD: secret, DB_PASSWORD_FILE: "/tmp/x" }));

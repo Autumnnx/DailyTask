@@ -1,6 +1,8 @@
 # Despliegue en Render
 
-DailyTask se compila como una aplicación frontend estática. No requiere un proceso de servidor Node.js en producción ni una base de datos para funcionar.
+> **Documento histórico.** Describe el despliegue de la versión anterior de DailyTask (solo frontend, datos en `localStorage`). La versión actual necesita la API y MySQL, y Render queda **fuera del alcance actual** del proyecto. El despliegue previsto se documentará en `backend-planning/` (Fase 7). `render.yaml` se conserva sin cambios.
+
+DailyTask se compilaba como una aplicación frontend estática. No requiere un proceso de servidor Node.js en producción ni una base de datos para funcionar.
 
 ## Demo actual
 
