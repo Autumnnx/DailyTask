@@ -1,85 +1,57 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Status, Task, TaskInput } from "../types";
-import { STORAGE_KEYS, readJSON, writeJSON } from "../utils/storage";
-import { createId } from "../utils/crypto";
+import { api, errorMessage } from "../utils/api";
 
 /**
- * Gestiona las tareas del usuario autenticado (CRUD + cambio de estado).
- * Las tareas de todos los usuarios viven en una sola clave de localStorage,
- * pero cada usuario solo ve y modifica las suyas.
+ * Tareas del usuario autenticado, almacenadas en MySQL a través de la API.
+ * El backend identifica al usuario por la cookie de sesión.
+ *
+ * El estado local solo refleja operaciones confirmadas por el servidor (sin
+ * actualizaciones optimistas). Las mutaciones lanzan `ApiError` si fallan.
  */
-export function useTasks(userId: string) {
-  const [allTasks, setAllTasks] = useState<Task[]>(() => readJSON<Task[]>(STORAGE_KEYS.tasks, []));
+export function useTasks() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const res = await api.get<{ tasks: Task[] }>("/tasks");
+      setTasks(res.tasks);
+    } catch (error) {
+      setLoadError(errorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    writeJSON(STORAGE_KEYS.tasks, allTasks);
-  }, [allTasks]);
+    void reload();
+  }, [reload]);
 
-  const tasks = useMemo(() => allTasks.filter((t) => t.userId === userId), [allTasks, userId]);
+  const replace = (task: Task) => setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
 
-  const createTask = useCallback(
-    (input: TaskInput) => {
-      const now = new Date().toISOString();
-      const task: Task = {
-        id: createId(),
-        userId,
-        title: input.title.trim(),
-        description: input.description.trim(),
-        dueDate: input.dueDate,
-        priority: input.priority,
-        status: input.status,
-        createdAt: now,
-        updatedAt: now,
-        completedAt: input.status === "completada" ? now : undefined,
-      };
-      setAllTasks((prev) => [task, ...prev]);
-    },
-    [userId],
-  );
+  const createTask = useCallback(async (input: TaskInput) => {
+    const res = await api.post<{ task: Task }>("/tasks", input);
+    setTasks((prev) => [res.task, ...prev]);
+  }, []);
 
-  const updateTask = useCallback(
-    (id: string, input: TaskInput) => {
-      const now = new Date().toISOString();
-      setAllTasks((prev) =>
-        prev.map((t) =>
-          t.id === id && t.userId === userId
-            ? {
-                ...t,
-                title: input.title.trim(),
-                description: input.description.trim(),
-                dueDate: input.dueDate,
-                priority: input.priority,
-                status: input.status,
-                updatedAt: now,
-                completedAt: input.status === "completada" ? (t.completedAt ?? now) : undefined,
-              }
-            : t,
-        ),
-      );
-    },
-    [userId],
-  );
+  const updateTask = useCallback(async (id: string, input: TaskInput) => {
+    const res = await api.put<{ task: Task }>(`/tasks/${encodeURIComponent(id)}`, input);
+    replace(res.task);
+  }, []);
 
-  const changeStatus = useCallback(
-    (id: string, status: Status) => {
-      const now = new Date().toISOString();
-      setAllTasks((prev) =>
-        prev.map((t) =>
-          t.id === id && t.userId === userId
-            ? { ...t, status, updatedAt: now, completedAt: status === "completada" ? now : undefined }
-            : t,
-        ),
-      );
-    },
-    [userId],
-  );
+  const changeStatus = useCallback(async (id: string, status: Status) => {
+    const res = await api.patch<{ task: Task }>(`/tasks/${encodeURIComponent(id)}/status`, { status });
+    replace(res.task);
+  }, []);
 
-  const deleteTask = useCallback(
-    (id: string) => {
-      setAllTasks((prev) => prev.filter((t) => !(t.id === id && t.userId === userId)));
-    },
-    [userId],
-  );
+  const deleteTask = useCallback(async (id: string) => {
+    await api.delete(`/tasks/${encodeURIComponent(id)}`);
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
-  return { tasks, createTask, updateTask, changeStatus, deleteTask };
+  return { tasks, loading, loadError, reload, createTask, updateTask, changeStatus, deleteTask };
 }

@@ -5,42 +5,47 @@ import { validateLogin, type FieldErrors } from "../utils/validators";
 import { AuthLayout } from "./AuthLayout";
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, notice } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: "", password: "" });
-  const [errors, setErrors] = useState<FieldErrors<"email" | "password">>({});
+  const [form, setForm] = useState({ username: "", password: "" });
+  const [errors, setErrors] = useState<FieldErrors<"username" | "password">>({});
   const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (loading) return;
     setFormError("");
     const found = validateLogin(form);
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
     setLoading(true);
-    const result = await login(form.email, form.password);
+    const result = await login(form.username, form.password);
     setLoading(false);
     if (result.ok) navigate("/", { replace: true });
     else setFormError(result.error ?? "No se pudo iniciar sesión.");
   }
 
+  const message = formError || notice;
+
   return (
     <AuthLayout title="Inicia sesión" subtitle="Entra para ver tus tareas.">
       <form onSubmit={handleSubmit} noValidate>
-        {formError && <p className="form-error" role="alert">{formError}</p>}
+        {message && <p className="form-error" role="alert">{message}</p>}
         <div className="field">
-          <label htmlFor="login-email">Correo electrónico</label>
+          <label htmlFor="login-username">Nombre de usuario</label>
           <input
-            id="login-email"
-            type="email"
-            autoComplete="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            aria-invalid={Boolean(errors.email)}
+            id="login-username"
+            type="text"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={form.username}
+            onChange={(e) => setForm({ ...form, username: e.target.value })}
+            aria-invalid={Boolean(errors.username)}
           />
-          {errors.email && <p className="field__error">{errors.email}</p>}
+          {errors.username && <p className="field__error">{errors.username}</p>}
         </div>
         <div className="field">
           <label htmlFor="login-password">Contraseña</label>

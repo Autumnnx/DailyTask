@@ -4,11 +4,16 @@ import { PRIORITIES, STATUSES } from "../utils/constants";
 import { todayISO } from "../utils/dates";
 import { validateTask, type FieldErrors } from "../utils/validators";
 
+type TaskFields = "title" | "description" | "dueDate";
+
+/** Resultado de guardar: el modal solo se cierra (desde el padre) si `ok`. */
+export type SubmitResult = { ok: true } | { ok: false; error: string; fields?: Record<string, string> };
+
 interface Props {
   open: boolean;
   /** Si se pasa una tarea, el formulario funciona en modo edición. */
   task?: Task | null;
-  onSubmit: (input: TaskInput) => void;
+  onSubmit: (input: TaskInput) => Promise<SubmitResult>;
   onClose: () => void;
 }
 
@@ -23,7 +28,9 @@ const emptyForm = (): TaskInput => ({
 export function TaskFormModal({ open, task, onSubmit, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState<TaskInput>(emptyForm);
-  const [errors, setErrors] = useState<FieldErrors<"title" | "description" | "dueDate">>({});
+  const [errors, setErrors] = useState<FieldErrors<TaskFields>>({});
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // Abre/cierra el <dialog> nativo y carga los datos de la tarea al abrir.
   useEffect(() => {
@@ -42,26 +49,55 @@ export function TaskFormModal({ open, task, onSubmit, onClose }: Props) {
           : emptyForm(),
       );
       setErrors({});
+      setFormError("");
+      setSaving(false);
       if (!dialog.open) dialog.showModal();
     } else if (dialog.open) {
       dialog.close();
     }
   }, [open, task]);
 
-  function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     const found = validateTask(form);
     setErrors(found);
+    setFormError("");
     if (Object.keys(found).length > 0) return;
-    onSubmit(form);
+
+    setSaving(true);
+    const result = await onSubmit(form);
+    setSaving(false);
+    if (!result.ok) {
+      // Se conservan los datos introducidos y se muestra el motivo.
+      const fieldErrors: FieldErrors<TaskFields> = {};
+      for (const key of ["title", "description", "dueDate"] as const) {
+        if (result.fields?.[key]) fieldErrors[key] = result.fields[key];
+      }
+      setErrors(fieldErrors);
+      setFormError(result.error);
+    }
+  }
+
+  function close() {
+    if (!saving) onClose();
   }
 
   const isEditing = Boolean(task);
 
   return (
-    <dialog ref={ref} className="dialog" onCancel={onClose} onClick={(e) => e.target === ref.current && onClose()}>
-      <form className="dialog__body" onSubmit={handleSubmit} noValidate>
+    <dialog
+      ref={ref}
+      className="dialog"
+      onCancel={(e) => {
+        e.preventDefault();
+        close();
+      }}
+      onClick={(e) => e.target === ref.current && close()}
+    >
+      <form className="dialog__body" onSubmit={handleSubmit} noValidate aria-busy={saving}>
         <h2 className="dialog__title">{isEditing ? "Editar tarea" : "Nueva tarea"}</h2>
+        {formError && <p className="form-error" role="alert">{formError}</p>}
 
         <div className="field">
           <label htmlFor="task-title">Título</label>
@@ -132,11 +168,11 @@ export function TaskFormModal({ open, task, onSubmit, onClose }: Props) {
         </div>
 
         <div className="dialog__actions">
-          <button type="button" className="btn btn--secondary" onClick={onClose}>
+          <button type="button" className="btn btn--secondary" onClick={close} disabled={saving}>
             Cancelar
           </button>
-          <button type="submit" className="btn btn--primary">
-            {isEditing ? "Guardar cambios" : "Crear tarea"}
+          <button type="submit" className="btn btn--primary" disabled={saving}>
+            {saving ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear tarea"}
           </button>
         </div>
       </form>

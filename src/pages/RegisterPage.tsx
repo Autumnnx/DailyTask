@@ -4,12 +4,12 @@ import { useAuth } from "../context/AuthContext";
 import { validateRegister, type FieldErrors } from "../utils/validators";
 import { AuthLayout } from "./AuthLayout";
 
-type Keys = "name" | "email" | "password" | "confirm";
+type Keys = "name" | "username" | "password" | "confirm";
 
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
+  const [form, setForm] = useState({ name: "", username: "", password: "", confirm: "" });
   const [errors, setErrors] = useState<FieldErrors<Keys>>({});
   const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,16 +18,26 @@ export function RegisterPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (loading) return;
     setFormError("");
     const found = validateRegister(form);
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
     setLoading(true);
-    const result = await register(form.name, form.email, form.password);
+    const result = await register(form.username, form.name, form.password);
     setLoading(false);
-    if (result.ok) navigate("/", { replace: true });
-    else setFormError(result.error ?? "No se pudo crear la cuenta.");
+    if (result.ok) {
+      navigate("/", { replace: true });
+      return;
+    }
+    // Errores por campo del servidor (p. ej. "Ese nombre de usuario ya está en uso.").
+    const fieldErrors: FieldErrors<Keys> = {};
+    for (const key of ["name", "username", "password"] as const) {
+      if (result.fields?.[key]) fieldErrors[key] = result.fields[key];
+    }
+    setErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length === 0) setFormError(result.error ?? "No se pudo crear la cuenta.");
   }
 
   return (
@@ -40,9 +50,18 @@ export function RegisterPage() {
           {errors.name && <p className="field__error">{errors.name}</p>}
         </div>
         <div className="field">
-          <label htmlFor="reg-email">Correo electrónico</label>
-          <input id="reg-email" type="email" autoComplete="email" value={form.email} onChange={update("email")} aria-invalid={Boolean(errors.email)} />
-          {errors.email && <p className="field__error">{errors.email}</p>}
+          <label htmlFor="reg-username">Nombre de usuario</label>
+          <input
+            id="reg-username"
+            type="text"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={form.username}
+            onChange={update("username")}
+            aria-invalid={Boolean(errors.username)}
+          />
+          {errors.username && <p className="field__error">{errors.username}</p>}
         </div>
         <div className="field">
           <label htmlFor="reg-password">Contraseña</label>

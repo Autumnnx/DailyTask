@@ -1,30 +1,26 @@
 export type Priority = "alta" | "media" | "baja";
 export type Status = "pendiente" | "en_progreso" | "completada";
 
-export interface User {
+/** Usuario autenticado tal como lo devuelve la API (`/api/auth/*`). */
+export interface SessionUser {
   id: string;
+  username: string;
   name: string;
-  email: string;
-  passwordHash: string;
-  salt: string;
-  createdAt: string;
 }
 
-/** Usuario sin datos sensibles, el que se expone a la interfaz. */
-export type SessionUser = Pick<User, "id" | "name" | "email">;
-
+/** Tarea tal como la devuelve la API (`/api/tasks`). Ids y marcas de tiempo los genera el backend. */
 export interface Task {
   id: string;
-  userId: string;
   title: string;
   description: string;
   /** Fecha en formato YYYY-MM-DD */
   dueDate: string;
   priority: Priority;
   status: Status;
+  /** ISO 8601 UTC */
   createdAt: string;
   updatedAt: string;
-  completedAt?: string;
+  completedAt: string | null;
 }
 
 export type TaskInput = Pick<Task, "title" | "description" | "dueDate" | "priority" | "status">;

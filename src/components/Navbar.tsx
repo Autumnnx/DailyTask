@@ -13,7 +13,7 @@ export function Navbar() {
         <div className="navbar__user">
           <span className="avatar" aria-hidden="true">{initial}</span>
           <span className="navbar__name">{user.name}</span>
-          <button type="button" className="btn btn--ghost-light" onClick={logout}>
+          <button type="button" className="btn btn--ghost-light" onClick={() => void logout()}>
             Cerrar sesión
           </button>
         </div>
