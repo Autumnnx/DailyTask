@@ -3,6 +3,9 @@ import { after, before, describe, it } from "node:test";
 import { AppError } from "../src/http/errors.ts";
 import { testApp } from "./helpers.ts";
 
+// Las peticiones que modifican datos exigen un Origin permitido (verificación CSRF).
+const ORIGIN = { origin: "http://localhost:5173" };
+
 describe("manejo centralizado de errores", () => {
   const app = testApp({ BODY_LIMIT_BYTES: "1024" });
 
@@ -62,6 +65,7 @@ describe("manejo centralizado de errores", () => {
     const res = await app.inject({
       method: "POST",
       url: "/__test/echo",
+      headers: ORIGIN,
       payload: { count: "x", extra: true },
     });
     assert.equal(res.statusCode, 400);
@@ -71,25 +75,25 @@ describe("manejo centralizado de errores", () => {
   });
 
   it("rechaza propiedades no permitidas", async () => {
-    const res = await app.inject({ method: "POST", url: "/__test/echo", payload: { title: "Hola", userId: "x" } });
+    const res = await app.inject({ method: "POST", url: "/__test/echo", headers: ORIGIN, payload: { title: "Hola", userId: "x" } });
     assert.equal(res.statusCode, 400);
     assert.equal(res.json().error.fields.userId, "Este campo no está permitido.");
   });
 
   it("no convierte tipos implícitamente", async () => {
-    const res = await app.inject({ method: "POST", url: "/__test/echo", payload: { title: "Hola", count: "2" } });
+    const res = await app.inject({ method: "POST", url: "/__test/echo", headers: ORIGIN, payload: { title: "Hola", count: "2" } });
     assert.equal(res.statusCode, 400);
     assert.equal(res.json().error.fields.count, "Valor no válido.");
   });
 
   it("señala campos obligatorios ausentes", async () => {
-    const res = await app.inject({ method: "POST", url: "/__test/echo", payload: {} });
+    const res = await app.inject({ method: "POST", url: "/__test/echo", headers: ORIGIN, payload: {} });
     assert.equal(res.statusCode, 400);
     assert.equal(res.json().error.fields.title, "Este campo es obligatorio.");
   });
 
   it("acepta un cuerpo válido", async () => {
-    const res = await app.inject({ method: "POST", url: "/__test/echo", payload: { title: "Hola", count: 2 } });
+    const res = await app.inject({ method: "POST", url: "/__test/echo", headers: ORIGIN, payload: { title: "Hola", count: 2 } });
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.json(), { title: "Hola", count: 2 });
   });
@@ -98,7 +102,7 @@ describe("manejo centralizado de errores", () => {
     const res = await app.inject({
       method: "POST",
       url: "/__test/echo",
-      headers: { "content-type": "application/json" },
+      headers: { ...ORIGIN, "content-type": "application/json" },
       payload: JSON.stringify({ title: "x".repeat(2048) }),
     });
     assert.equal(res.statusCode, 413);
@@ -109,7 +113,7 @@ describe("manejo centralizado de errores", () => {
     const res = await app.inject({
       method: "POST",
       url: "/__test/echo",
-      headers: { "content-type": "text/plain" },
+      headers: { ...ORIGIN, "content-type": "text/plain" },
       payload: "title=Hola",
     });
     assert.equal(res.statusCode, 415);
@@ -120,7 +124,7 @@ describe("manejo centralizado de errores", () => {
     const res = await app.inject({
       method: "POST",
       url: "/__test/echo",
-      headers: { "content-type": "application/json" },
+      headers: { ...ORIGIN, "content-type": "application/json" },
       payload: '{"title": ',
     });
     assert.equal(res.statusCode, 400);

@@ -75,7 +75,10 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
 
   app.addHook("onSend", async (request, reply) => {
     reply.header("x-content-type-options", "nosniff");
-    if (request.url.startsWith("/api") && !reply.hasHeader("cache-control")) {
+    // Ruta normalizada del enrutador (no el texto de la URL, que puede venir codificado);
+    // sin ruta (404) también se marca como no cacheable.
+    const route = request.routeOptions.url;
+    if ((route === undefined || route.startsWith("/api")) && !reply.hasHeader("cache-control")) {
       reply.header("cache-control", "no-store");
     }
   });

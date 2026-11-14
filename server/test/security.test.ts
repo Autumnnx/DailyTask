@@ -34,6 +34,23 @@ describe("verificación de Origin (CSRF)", () => {
     assert.equal(res.statusCode, 200);
   });
 
+  it("no se puede eludir con rutas codificadas o variantes de la URL (regresión Fase 6)", async () => {
+    const app = testApp();
+    for (const url of ["/%61pi/auth/logout", "/api/auth/%6Cogout", "/api//auth/logout", "/api/auth/logout/", "/%61pi/tasks"]) {
+      const res = await app.inject({ method: "POST", url });
+      assert.equal(res.statusCode, 403, url);
+    }
+    await app.close();
+  });
+
+  it("las respuestas de la API no se cachean aunque la URL venga codificada", async () => {
+    const app = testApp();
+    const res = await app.inject({ method: "GET", url: "/%61pi/health" });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers["cache-control"], "no-store");
+    await app.close();
+  });
+
   it("usa PUBLIC_ORIGIN cuando está definido", async () => {
     const app = testApp({ PUBLIC_ORIGIN: "https://dailytask.example" });
     const ok = await app.inject({ method: "POST", url: "/api/auth/logout", headers: { origin: "https://dailytask.example" } });
