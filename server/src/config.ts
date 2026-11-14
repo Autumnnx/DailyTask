@@ -16,7 +16,7 @@ export interface DbConfig {
   /** TCP (desarrollo). Ignorado si hay `socketPath`. */
   host: string;
   port: number;
-  /** Socket Unix (producción en NixOS). */
+  /** Socket Unix (producción). */
   socketPath: string | undefined;
   database: string;
   user: string;

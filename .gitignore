@@ -7,6 +7,7 @@ dist
 !.vscode/extensions.json
 .idea
 server/dev
+deploy/
 
 # Variables de entorno locales (backend en server/). Solo se versiona el ejemplo.
 .env

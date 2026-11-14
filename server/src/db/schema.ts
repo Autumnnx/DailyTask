@@ -1,7 +1,7 @@
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 
 /**
- * Esquema de DailyTask (ver docs/backend-planning/DATABASE.md).
+ * Esquema de DailyTask (tablas users, tasks y sessions).
  *
  * Inicialización sencilla: se crean las tablas que falten y después se verifica
  * que la estructura coincide con la esperada. Nunca se modifican ni borran

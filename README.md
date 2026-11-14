@@ -13,6 +13,7 @@ Saludos cordiales al profesor Jeferson Urrego: muchas gracias por acompañarnos 
 - Buscar por título o descripción y filtrar por estado y prioridad.
 - Consultar el porcentaje de tareas completadas y las tareas vencidas.
 - Usar la interfaz en escritorio, tableta o móvil.
+- Consultar la documentación de la API en [`/api-docs`](https://dailytask.korikashi.uk/api-docs).
 
 ## Tecnologías
 
@@ -62,7 +63,7 @@ Detalles de la API en [`server/README.md`](server/README.md).
 - [Arquitectura y modelo de datos](docs/arquitectura.md)
 - [Desarrollo local](docs/desarrollo-local.md)
 - [Datos, privacidad y seguridad](docs/datos-y-seguridad.md)
-- [Documentación técnica del backend](docs/backend-planning/HANDOFF.md) y [`server/README.md`](server/README.md)
+- [API del backend](server/README.md) y documentación interactiva de consulta en [`/api-docs`](https://dailytask.korikashi.uk/api-docs) (especificación OpenAPI 3.1 en [`/openapi.json`](https://dailytask.korikashi.uk/openapi.json))
 
 ## Estructura principal
 
@@ -77,12 +78,11 @@ src/
 ├── utils/         Cliente de la API (api.ts), validaciones, fechas y utilidades
 ├── App.tsx        Definición de rutas
 └── main.tsx       Punto de entrada
-server/            API REST (Fastify + MySQL); en producción sirve también el frontend
-deploy/            Despliegue en NixOS: módulo, ejemplo y manual
+server/            API REST (Fastify + MySQL); en producción sirve también el frontend y /api-docs
 docs/              Guías y documentación del proyecto
 render.yaml        Despliegue anterior (solo frontend); fuera del alcance actual
 ```
 
 ## Despliegue
 
-Producción: `https://dailytask.korikashi.uk`. Caddy (VPS Oracle) hace de proxy HTTPS por Tailscale hacia un único proceso Fastify en el HomeLab NixOS (puerto 8088), que sirve la API y el frontend compilado, con MySQL 8.4 nativo. El despliegue es manual: [`deploy/README.md`](deploy/README.md). El despliegue anterior en Render, solo frontend, está fuera del alcance actual ([documento histórico](docs/despliegue-render.md)).
+La aplicación está desplegada públicamente en [https://dailytask.korikashi.uk](https://dailytask.korikashi.uk). Un único proceso Fastify sirve, bajo el mismo origen y por HTTPS, el frontend compilado, la API (`/api`) y su documentación (`/api-docs`), con MySQL 8 como base de datos. El despliegue anterior en Render, solo frontend, está fuera del alcance actual ([documento histórico](docs/despliegue-render.md)).

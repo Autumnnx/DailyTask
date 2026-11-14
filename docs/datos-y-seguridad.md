@@ -1,6 +1,6 @@
 # Datos, privacidad y seguridad
 
-Resumen para usuarios y evaluadores. El detalle técnico está en [`backend-planning/SECURITY.md`](backend-planning/SECURITY.md) y [`backend-planning/DATABASE.md`](backend-planning/DATABASE.md).
+Resumen para usuarios y evaluadores. Las reglas técnicas de cada endpoint (autenticación, validaciones y errores) están en la documentación de la API, `/api-docs`.
 
 ## Dónde se guardan los datos
 

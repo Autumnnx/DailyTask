@@ -9,6 +9,7 @@ import { registerErrorHandling } from "./http/errors.ts";
 import { registerOriginCheck } from "./http/origin.ts";
 import { rateLimitOptions } from "./http/rate-limit.ts";
 import { registerStatic, spaNotFoundHandler } from "./http/static.ts";
+import { docsRoutes } from "./docs/routes.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { taskRoutes } from "./tasks/routes.ts";
 
@@ -109,7 +110,11 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
   app.removeContentTypeParser("text/plain");
 
   app.addHook("onSend", async (request, reply) => {
-    for (const [name, value] of securityHeaders) reply.header(name, value);
+    for (const [name, value] of securityHeaders) {
+      // Una ruta puede fijar su propia CSP (solo la página /api-docs/, con nonce); el resto usa la general.
+      if (name === "content-security-policy" && reply.hasHeader(name)) continue;
+      reply.header(name, value);
+    }
     // Ruta normalizada del enrutador (no el texto de la URL, que puede venir codificado);
     // sin ruta (404) también se marca como no cacheable.
     const route = request.routeOptions.url;
@@ -133,6 +138,9 @@ export function buildApp(config: Config, options: BuildAppOptions): FastifyInsta
   );
 
   // Frontend compilado en el mismo origen (producción). Sin STATIC_DIR, solo API (desarrollo con Vite).
+  // Documentación de la API (solo consulta): /openapi.json y /api-docs.
+  app.register(docsRoutes);
+
   if (config.staticDir) registerStatic(app, config.staticDir);
 
   return app;

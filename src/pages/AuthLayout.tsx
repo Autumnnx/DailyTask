@@ -32,6 +32,9 @@ export function AuthLayout({ title, subtitle, children }: { title: string; subti
           <h2>{title}</h2>
           <p className="auth__subtitle">{subtitle}</p>
           {children}
+          <p className="auth__switch auth__docs">
+            <a href="/api-docs">API Docs</a>
+          </p>
         </div>
       </section>
     </main>

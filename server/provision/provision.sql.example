@@ -1,4 +1,4 @@
--- Aprovisionamiento de DailyTask en el MySQL 8 de PRODUCCIÓN (NixOS).
+-- Aprovisionamiento de DailyTask en el MySQL 8 de PRODUCCIÓN.
 -- Lo ejecuta UNA VEZ un administrador de MySQL, sobre una COPIA de este archivo
 -- en la que sustituye las dos contraseñas. No guardes la copia en el repositorio.
 --
@@ -7,7 +7,9 @@
 --
 -- Es idempotente y no destructivo: no borra nada y CREATE USER IF NOT EXISTS
 -- no cambia la contraseña de un usuario existente (para rotarla: ALTER USER).
--- Los usuarios usan 'localhost' porque la API conecta por socket Unix.
+-- Los usuarios usan 'localhost' porque la API conecta por socket Unix. Si conecta por TCP,
+-- el host de los usuarios debe ser la dirección desde la que llega la conexión
+-- (compruébalo con SELECT CURRENT_USER()).
 
 CREATE DATABASE IF NOT EXISTS dailytask
   CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;

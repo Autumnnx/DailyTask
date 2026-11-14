@@ -10,7 +10,7 @@ Esta carpeta contiene las guías funcionales y técnicas del proyecto.
 | [Arquitectura](arquitectura.md) | Visión general: frontend, API, MySQL, rutas, código y modelo de datos |
 | [Desarrollo local](desarrollo-local.md) | Requisitos, puesta en marcha de frontend + API + MySQL, comandos y problemas frecuentes |
 | [Datos y seguridad](datos-y-seguridad.md) | Dónde se guardan los datos, contraseñas, sesión y protecciones |
-| [`backend-planning/`](backend-planning/HANDOFF.md) | Documentación técnica del backend: API, base de datos, seguridad, decisiones y fases |
+| [API del backend](../server/README.md) | Endpoints, configuración y comandos de la API; referencia completa en `/api-docs` (OpenAPI 3.1 en `/openapi.json`) |
 
 ## Documentos históricos
 

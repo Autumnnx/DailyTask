@@ -3,9 +3,11 @@ import react from "@vitejs/plugin-react";
 
 // La API (server/) escucha en 127.0.0.1:3000. En desarrollo, Vite reenvía /api a ella
 // para que frontend y API compartan origen (cookies de sesión sin CORS).
-// En producción el frontend usa las mismas rutas relativas /api.
+// "/api" también cubre la documentación /api-docs; /openapi.json es la especificación.
+// En producción el frontend usa las mismas rutas relativas.
 const apiProxy = {
     "/api": { target: "http://127.0.0.1:3000", changeOrigin: false },
+    "/openapi.json": { target: "http://127.0.0.1:3000", changeOrigin: false },
 };
 
 // https://vite.dev/config/

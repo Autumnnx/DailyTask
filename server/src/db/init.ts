@@ -32,7 +32,7 @@ async function main(): Promise<number> {
       if (problems.length > 0) {
         process.stderr.write(
           `El esquema existente no coincide con el esperado (no se ha modificado ninguna tabla existente):\n - ${problems.join("\n - ")}\n` +
-            "Se requiere intervención manual (ver docs/backend-planning/DATABASE.md).\n",
+            "Se requiere intervención manual: revisa las diferencias indicadas (el esquema esperado está en src/db/schema.ts).\n",
         );
         return 1;
       }

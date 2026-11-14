@@ -2,7 +2,7 @@ import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from
 import { describeDbError, isDbUnavailable } from "../db/pool.ts";
 
 /**
- * Formato único de error de la API (ver docs/backend-planning/API.md §1.1):
+ * Formato único de error de la API (documentado en /openapi.json, esquema `Error`):
  *   { "error": { "code": "...", "message": "...", "fields"?: { campo: mensaje } } }
  */
 export type ErrorCode =

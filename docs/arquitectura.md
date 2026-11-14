@@ -1,6 +1,6 @@
 # Arquitectura y modelo de datos
 
-Visión general para orientarse en el código. La arquitectura detallada (decisiones, conexión con MySQL, plan de despliegue) está en [`backend-planning/ARCHITECTURE.md`](backend-planning/ARCHITECTURE.md) y el contrato de la API en [`backend-planning/API.md`](backend-planning/API.md).
+Visión general para orientarse en el código. El contrato completo de la API está en la documentación de consulta `/api-docs` (especificación OpenAPI 3.1 en `/openapi.json`) y los detalles de configuración en [`server/README.md`](../server/README.md).
 
 ## Visión general
 
@@ -15,14 +15,15 @@ API Fastify (server/)  — validación, autenticación, autorización, límites
 MySQL 8  — users · tasks · sessions
 ```
 
-En desarrollo, Vite (`:5173`) reenvía `/api` a la API (`:3000`). En producción se servirán bajo el mismo dominio (pendiente de la fase de despliegue).
+En desarrollo, Vite (`:5173`) reenvía `/api` a la API (`:3000`). En producción, el mismo proceso Fastify sirve el frontend compilado, la API y `/api-docs` bajo un único dominio con HTTPS.
 
 ## Tecnologías
 
 | Parte | Tecnologías |
 |---|---|
 | Frontend | React 19, TypeScript 5, Vite 7, React Router 7, CSS propio |
-| API | Node.js, Fastify 5, TypeScript, `@fastify/cookie`, `@fastify/rate-limit`, `@node-rs/argon2` |
+| API | Node.js, Fastify 5, TypeScript, `@fastify/cookie`, `@fastify/rate-limit`, `@fastify/static`, `@node-rs/argon2` |
+| Documentación de la API | OpenAPI 3.1 (`/openapi.json`) y Scalar (`@scalar/fastify-api-reference`) en `/api-docs` |
 | Datos | MySQL 8 (`mysql2/promise`) |
 
 ## Rutas del frontend
@@ -89,4 +90,4 @@ En la base de datos se guarda además el hash Argon2id de la contraseña, que nu
 | `createdAt`, `updatedAt` | Marcas de tiempo ISO 8601 (UTC) del servidor |
 | `completedAt` | Fecha de finalización o `null` |
 
-Esquema MySQL completo en [`backend-planning/DATABASE.md`](backend-planning/DATABASE.md).
+El esquema MySQL (tablas `users`, `tasks` y `sessions`, con sus restricciones e índices) está definido en [`server/src/db/schema.ts`](../server/src/db/schema.ts).

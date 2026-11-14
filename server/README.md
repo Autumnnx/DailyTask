@@ -17,8 +17,10 @@ API REST de DailyTask. Paquete independiente del frontend (`../src/`), con su pr
 | PUT | `/api/tasks/:id` | cookie | Edición completa → 200 `{ task }` |
 | PATCH | `/api/tasks/:id/status` | cookie | `{ status }` (completar/reabrir) → 200 `{ task }` |
 | DELETE | `/api/tasks/:id` | cookie | 204 |
+| GET | `/openapi.json` | — | Especificación OpenAPI 3.1 de los endpoints anteriores |
+| GET | `/api-docs` | — | Documentación de consulta (Scalar, tema oscuro). No ejecuta peticiones |
 
-Contrato completo en `../docs/backend-planning/API.md`. Las peticiones que modifican datos necesitan `Content-Type: application/json` (si llevan cuerpo) y un `Origin` permitido. Flujo: login (o registro) una vez y después la cookie identifica al usuario:
+Contrato completo (esquemas, validaciones, errores y ejemplos) en la documentación de consulta `/api-docs`, generada a partir de la especificación OpenAPI 3.1 que se sirve en `/openapi.json`. Las peticiones que modifican datos necesitan `Content-Type: application/json` (si llevan cuerpo) y un `Origin` permitido. Flujo: login (o registro) una vez y después la cookie identifica al usuario:
 
 ```bash
 J=(-H 'content-type: application/json' -H 'origin: http://localhost:5173')
@@ -104,11 +106,11 @@ Variables de entorno (ver `.env.example`). Una configuración inválida detiene 
 | `MAX_TASKS_PER_USER` | `1000` | Máximo de tareas almacenadas por usuario |
 | `STATIC_DIR` | vacío | Carpeta `dist/` del frontend compilado: Fastify sirve la app React en el mismo origen (fallback a `index.html` para las rutas del SPA). Vacío = solo API |
 
-`DB_PASSWORD_FILE` (y `DB_INIT_PASSWORD_FILE`) admiten una ruta relativa que se busca en `$CREDENTIALS_DIRECTORY` (systemd `LoadCredential`), como hace el módulo NixOS.
+`DB_PASSWORD_FILE` (y `DB_INIT_PASSWORD_FILE`) admiten una ruta relativa que se busca en `$CREDENTIALS_DIRECTORY` (systemd `LoadCredential`).
 
 ## Producción
 
-Despliegue en el HomeLab NixOS detrás de Caddy (VPS) con un único proceso que sirve API y frontend: ver [`../deploy/README.md`](../deploy/README.md). Se ejecuta la versión compilada (`node dist/server.js`), nunca `npm run dev`, y las variables las fija el módulo `deploy/nixos/dailytask.nix` (no se usa `.env`).
+Un único proceso sirve la API, el frontend compilado (`STATIC_DIR`) y la documentación, detrás de un proxy HTTPS. Se ejecuta la versión compilada (`node dist/server.js`), nunca `npm run dev`, con las variables de entorno definidas por el gestor de servicios (no se usa `.env`): `NODE_ENV=production`, `PUBLIC_ORIGIN` con https, `TRUST_PROXY` con la IP del proxy y las contraseñas mediante `*_PASSWORD_FILE`.
 
 Con `STATIC_DIR` todas las respuestas llevan cabeceras de seguridad (CSP compatible con la app y Google Fonts, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, y HSTS con `NODE_ENV=production`). Los recursos de `assets/` se sirven con caché inmutable y `index.html` con `no-cache`.
 
@@ -136,6 +138,8 @@ server/
 │   ├── http/origin.ts    Verificación de Origin (CSRF)
 │   ├── http/rate-limit.ts Límite global y respuesta 429
 │   ├── http/static.ts    Frontend compilado (STATIC_DIR) y fallback del SPA
+│   ├── docs/openapi.ts   Especificación OpenAPI 3.1 (se comprueba contra las rutas en test/docs.test.ts)
+│   ├── docs/routes.ts    /openapi.json y /api-docs (Scalar servido localmente, sin CDN)
 │   └── routes/health.ts  GET /api/health
 ├── dev/mysql.sh          MySQL de desarrollo (Docker/Podman)
 ├── provision/provision.sql.example   Aprovisionamiento de producción (plantilla)
